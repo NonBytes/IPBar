@@ -448,7 +448,7 @@ struct InterfaceRow: View {
                 }
                 // Subnet mask
                 if let mask = iface.subnetMask, let p = iface.subnetPrefix, !iface.ipv4.isEmpty {
-                    let display = masked ? maskCompound("\(mask) (\(p))") : "\(mask) (\(p))"
+                    let display = masked ? "\(maskIP(mask)) (xx)" : "\(mask) (\(p))"
                     Text(display).font(.system(size: 10)).foregroundStyle(.secondary)
                 }
                 // Gateway (no "gw" prefix — just the IP)
