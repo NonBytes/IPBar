@@ -6,6 +6,12 @@
   with reverse DNS, country flag, and ISP.</p>
 </div>
 
+## Screenshot
+
+<div align="center">
+  <img src="docs/screenshot.png" width="540" alt="IPBar menu bar panel">
+</div>
+
 ## Features
 
 - **All interfaces** — enumerated via `getifaddrs()`, with friendly names
