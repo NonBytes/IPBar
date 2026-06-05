@@ -50,49 +50,14 @@ func drawIcon(in ctx: CGContext, size S: CGFloat) {
 
     let cx = margin + side / 2
 
-    // --- geometry ---
-    let gc  = CGPoint(x: cx, y: margin + side * 0.28)   // globe centre
-    let Rg  = side * 0.40                                // globe radius
-    let pc  = CGPoint(x: cx, y: margin + side * 0.655)  // pin head centre
-    let Rh  = side * 0.205                               // pin head radius
-    let tipY = margin + side * 0.355                     // pin tip
-    let Ri  = Rh * 0.60                                  // inner ring radius
+    // --- geometry: a single centred location pin ---
+    let pc   = CGPoint(x: cx, y: margin + side * 0.615)   // pin head centre
+    let Rh   = side * 0.285                                // pin head radius
+    let tipY = margin + side * 0.105                       // pin tip
+    let Ri   = Rh * 0.60                                   // inner ring radius
+    let ringW = side * 0.030
+    let pinW  = side * 0.034
 
-    let gridW  = side * 0.016
-    let ringW  = side * 0.026
-    let pinW   = side * 0.030
-
-    // ---------- GLOBE (clipped to the squircle so its bottom is cut flat) ----------
-    ctx.saveGState()
-    ctx.addPath(bg); ctx.clip()
-    ctx.setStrokeColor(ink)
-
-    // grid lines, clipped to the globe disc
-    ctx.saveGState()
-    ctx.addEllipse(in: CGRect(x: gc.x - Rg, y: gc.y - Rg, width: 2 * Rg, height: 2 * Rg))
-    ctx.clip()
-    ctx.setLineWidth(gridW)
-    // equator + prime meridian
-    ctx.move(to: CGPoint(x: gc.x, y: gc.y - Rg)); ctx.addLine(to: CGPoint(x: gc.x, y: gc.y + Rg))
-    ctx.move(to: CGPoint(x: gc.x - Rg, y: gc.y)); ctx.addLine(to: CGPoint(x: gc.x + Rg, y: gc.y))
-    ctx.strokePath()
-    for rx in [Rg * 0.55, Rg * 0.27] {   // meridians
-        ctx.addEllipse(in: CGRect(x: gc.x - rx, y: gc.y - Rg, width: 2 * rx, height: 2 * Rg))
-        ctx.strokePath()
-    }
-    for ry in [Rg * 0.55, Rg * 0.27] {   // latitudes
-        ctx.addEllipse(in: CGRect(x: gc.x - Rg, y: gc.y - ry, width: 2 * Rg, height: 2 * ry))
-        ctx.strokePath()
-    }
-    ctx.restoreGState()
-
-    // globe outline
-    ctx.setLineWidth(ringW)
-    ctx.addEllipse(in: CGRect(x: gc.x - Rg, y: gc.y - Rg, width: 2 * Rg, height: 2 * Rg))
-    ctx.strokePath()
-    ctx.restoreGState()
-
-    // ---------- PIN (drawn opaque over the globe) ----------
     // tangent points from the tip to the head circle
     let d = pc.y - tipY
     let beta = acos(Rh / d)
@@ -107,19 +72,14 @@ func drawIcon(in ctx: CGContext, size S: CGFloat) {
     pin.addArc(center: pc, radius: Rh, startAngle: aRight, endAngle: aLeft, clockwise: false)
     pin.closeSubpath()
 
-    // mask the globe behind the pin, then stroke the outline
+    // pin body: white interior + stroked outline
     ctx.saveGState()
-    ctx.addPath(pin)
-    ctx.setFillColor(bgColor)
-    ctx.fillPath()
+    ctx.addPath(pin); ctx.setFillColor(bgColor); ctx.fillPath()
     ctx.restoreGState()
+    ctx.setStrokeColor(ink); ctx.setLineWidth(pinW)
+    ctx.addPath(pin); ctx.strokePath()
 
-    ctx.setStrokeColor(ink)
-    ctx.setLineWidth(pinW)
-    ctx.addPath(pin)
-    ctx.strokePath()
-
-    // inner ring (white interior so globe lines never show through) + "IP"
+    // inner ring + "IP"
     let innerRect = CGRect(x: pc.x - Ri, y: pc.y - Ri, width: 2 * Ri, height: 2 * Ri)
     ctx.setFillColor(bgColor); ctx.addEllipse(in: innerRect); ctx.fillPath()
     ctx.setLineWidth(ringW); ctx.setStrokeColor(ink)
