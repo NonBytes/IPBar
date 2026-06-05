@@ -343,7 +343,7 @@ struct PublicIPCard: View {
                     } else {
                         Text("No internet").font(.system(size: 12)).foregroundStyle(.secondary)
                     }
-                    if let isp = info.isp {
+                    if !masked, let isp = info.isp {
                         Text(isp).font(.system(size: 10)).foregroundStyle(.secondary)
                     }
                     if showIPv6, let v6 = info.secondaryIP {
