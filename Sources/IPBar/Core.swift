@@ -887,6 +887,22 @@ func maskCompound(_ s: String) -> String {
     return maskIP(s)
 }
 
+/// Fully mask an IP — every component, including the last.
+/// "192.168.1.1" → "xxx.xxx.xxx.xxx"; "fd00::1" → "xxxx:…:xxxx"
+func maskIPFull(_ raw: String) -> String {
+    if raw.contains("."), !raw.contains(":") {
+        let parts = raw.split(separator: ".", omittingEmptySubsequences: false)
+        guard parts.count == 4 else { return raw }
+        return Array(repeating: "xxx", count: parts.count).joined(separator: ".")
+    }
+    if raw.contains(":") {
+        let parts = raw.split(separator: ":", omittingEmptySubsequences: false)
+        guard parts.count > 1 else { return raw }
+        return Array(repeating: "xxxx", count: parts.count).joined(separator: ":")
+    }
+    return raw
+}
+
 /// Normalize an ISP/org string by stripping a leading autonomous-system number.
 /// "AS133481 AIS Fibre" → "AIS Fibre"; "AIS Fibre" → "AIS Fibre".
 func ispOrgName(_ raw: String) -> String {

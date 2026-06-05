@@ -127,6 +127,12 @@ final class IPBarTests: XCTestCase {
         XCTAssertEqual(maskCompound("gw 10.0.0.1"),      "gw xxx.xxx.xxx.1")
     }
 
+    func testMaskIPFull() {
+        XCTAssertEqual(maskIPFull("192.168.111.1"),   "xxx.xxx.xxx.xxx")
+        XCTAssertEqual(maskIPFull("255.255.255.0"),   "xxx.xxx.xxx.xxx")
+        XCTAssertTrue(maskIPFull("fd00::1").allSatisfy { $0 == "x" || $0 == ":" })
+    }
+
     // MARK: lsof parsing (port -> process mapping)
 
     func testParsePortsMapsProcess() {

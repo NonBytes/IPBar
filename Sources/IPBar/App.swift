@@ -448,12 +448,12 @@ struct InterfaceRow: View {
                 }
                 // Subnet mask
                 if let mask = iface.subnetMask, let p = iface.subnetPrefix, !iface.ipv4.isEmpty {
-                    let display = masked ? "\(maskIP(mask)) (xx)" : "\(mask) (\(p))"
+                    let display = masked ? "\(maskIPFull(mask)) (xx)" : "\(mask) (\(p))"
                     Text(display).font(.system(size: 10)).foregroundStyle(.secondary)
                 }
                 // Gateway (no "gw" prefix — just the IP)
                 if let gw = iface.gateway {
-                    let display = masked ? maskIP(gw) : gw
+                    let display = masked ? maskIPFull(gw) : gw
                     CopyText(display, size: 10, weight: .regular, mono: true,
                              color: .secondary, onCopy: { _ in onCopy(gw) })
                 }
