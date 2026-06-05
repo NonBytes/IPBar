@@ -432,7 +432,7 @@ struct InterfaceRow: View {
                              color: .secondary, onCopy: { _ in onCopy(mac.uppercased()) })
                 }
                 if showWiFiDetails, let w = iface.wifi {
-                    WiFiDetailLine(wifi: w)
+                    WiFiDetailLine(wifi: w, masked: masked)
                 }
             }
 
@@ -509,6 +509,7 @@ struct Badge: View {
 
 struct WiFiDetailLine: View {
     let wifi: WiFiDetails
+    var masked: Bool = false
     @State private var expanded = false
 
     private struct Row: Identifiable {
@@ -530,7 +531,7 @@ struct WiFiDetailLine: View {
                     Image(systemName: "cellularbars", variableValue: Double(wifi.bars) / 4.0)
                         .font(.system(size: 10))
                         .foregroundStyle(signalColor)
-                    Text(wifi.ssid ?? "Wi-Fi")
+                    Text(masked ? "xxxx-xxxx" : (wifi.ssid ?? "Wi-Fi"))
                         .font(.system(size: 10, weight: .medium))
                         .foregroundStyle(.secondary)
                 }
@@ -566,7 +567,7 @@ struct WiFiDetailLine: View {
         if let v = wifi.txRate   { r.append(Row(label: "Tx Rate",  value: "\(Int(v)) Mbps", mono: false)) }
         if let v = wifi.snr      { r.append(Row(label: "SNR",      value: "\(v) dB", mono: false)) }
         if let v = wifi.noise    { r.append(Row(label: "Noise",    value: "\(v) dBm", mono: false)) }
-        if let v = wifi.bssid    { r.append(Row(label: "BSSID",    value: v, mono: true)) }
+        if let v = wifi.bssid    { r.append(Row(label: "BSSID",    value: masked ? maskMAC(v) : v, mono: true)) }
         return r
     }
 
