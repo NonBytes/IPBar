@@ -1,7 +1,10 @@
-# IPBar
-
-A lightweight macOS **menu bar** app that shows the IP address of every active
-network interface — Wi-Fi, Ethernet, and VPN — plus your public IP with reverse DNS.
+<div align="center">
+  <img src="docs/icon.png" width="120" alt="IPBar icon">
+  <h1>IPBar</h1>
+  <p>A lightweight macOS <strong>menu bar</strong> app that shows the IP address of
+  every active network interface — Wi-Fi, Ethernet, and VPN — plus your public IP
+  with reverse DNS, country flag, and ISP.</p>
+</div>
 
 ## Features
 
@@ -102,7 +105,8 @@ Both build systems compile the **same** `Sources/IPBar/*.swift` and use the same
 
 - **Launch at login** (`SMAppService`)
 - **Menu bar shows**: icon only · public IP · local IP (text next to the icon).
-  The icon switches to a lock-shield when a **VPN** is active.
+  The menu-bar glyph is the same "IP" location pin as the app icon, and fills in
+  solid when a **VPN** is active.
 - **Auto-refresh**: off / 15s / 30s / 1m / 5m
 - **Show Wi-Fi details** (signal, channel, etc.). Reading the **SSID** needs
   Location access (macOS 14+ gates it); the other Wi-Fi fields work without it.
@@ -133,5 +137,30 @@ History is stored in `UserDefaults` (key `ip_history`) as a JSON array, capped a
   "hostname": "example.net", "summary": "Wi-Fi 192.168.1.176" }
 ```
 
-No data ever leaves the machine except the public-IP lookup
-(`api.ipify.org` / `api6.ipify.org`).
+No data ever leaves the machine except the public-IP lookup (`api.ipify.org` /
+`icanhazip.com` for the address; `ipwho.is` / `ipinfo.io` for country + ISP).
+
+## Distribution & notarization
+
+Builds are signed with a local **Apple Development** identity when one is present,
+otherwise **ad-hoc** (`codesign --sign -`). Either way they run on the machine
+that built them but trip Gatekeeper on *other* Macs.
+
+To hand the DMG to someone else without the "unidentified developer" warning,
+notarize it with an **Apple Developer ID Application** certificate (paid Apple
+Developer Program). `Tools/package_dmg.sh` automates this when a Developer ID
+cert is installed and notary credentials are exported:
+
+```bash
+export NOTARY_APPLE_ID="you@example.com"
+export NOTARY_TEAM_ID="TEAMID"
+export NOTARY_PASSWORD="app-specific-password"
+./Tools/package_dmg.sh        # signs (hardened runtime) + notarizes + staples
+```
+
+Without a Developer ID, recipients can still open the app once via
+**right-click → Open** (or System Settings → Privacy & Security → *Open Anyway*).
+
+## License
+
+[MIT](LICENSE) © NonBytes
