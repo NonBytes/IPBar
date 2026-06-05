@@ -427,8 +427,9 @@ struct InterfaceRow: View {
                     }
                 }
                 if showMAC, let mac = iface.mac {
-                    CopyText(mac.uppercased(), size: 10, weight: .regular, mono: true,
-                             color: .secondary, onCopy: onCopy)
+                    let display = masked ? maskMAC(mac) : mac.uppercased()
+                    CopyText(display, size: 10, weight: .regular, mono: true,
+                             color: .secondary, onCopy: { _ in onCopy(mac.uppercased()) })
                 }
                 if showWiFiDetails, let w = iface.wifi {
                     WiFiDetailLine(wifi: w)

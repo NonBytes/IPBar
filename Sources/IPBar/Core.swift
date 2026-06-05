@@ -903,6 +903,13 @@ func maskIPFull(_ raw: String) -> String {
     return raw
 }
 
+/// Mask a MAC address — every octet. "C8:A3:62:D0:A8:71" → "xx:xx:xx:xx:xx:xx"
+func maskMAC(_ raw: String) -> String {
+    let parts = raw.split(separator: ":", omittingEmptySubsequences: false)
+    guard parts.count >= 2 else { return raw }
+    return Array(repeating: "xx", count: parts.count).joined(separator: ":")
+}
+
 /// Normalize an ISP/org string by stripping a leading autonomous-system number.
 /// "AS133481 AIS Fibre" → "AIS Fibre"; "AIS Fibre" → "AIS Fibre".
 func ispOrgName(_ raw: String) -> String {
