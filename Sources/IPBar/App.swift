@@ -432,7 +432,7 @@ struct InterfaceRow: View {
                              color: .secondary, onCopy: { _ in onCopy(mac.uppercased()) })
                 }
                 if showWiFiDetails, let w = iface.wifi {
-                    WiFiDetailLine(wifi: w, masked: masked)
+                    WiFiDetailLine(wifi: w)
                 }
             }
 
@@ -509,8 +509,8 @@ struct Badge: View {
 
 struct WiFiDetailLine: View {
     let wifi: WiFiDetails
-    var masked: Bool = false
     @State private var expanded = false
+    @State private var ssidMasked = false   // independent of the row's mask toggle
 
     private struct Row: Identifiable {
         let id = UUID()
@@ -521,23 +521,29 @@ struct WiFiDetailLine: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 1) {
-            // SSID line — tap to reveal / hide the full per-line details. (No chevron.)
-            Button {
-                withAnimation(.easeInOut(duration: 0.15)) { expanded.toggle() }
-            } label: {
-                HStack(spacing: 4) {
-                    // Signal-bars icon (distinct from the interface's plain "wifi" glyph);
-                    // the bars fill to match RSSI strength.
+            // SSID line: tap the signal icon to mask/unmask the name; tap the
+            // name to reveal/hide the full per-line details. (Two independent toggles.)
+            HStack(spacing: 4) {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.15)) { ssidMasked.toggle() }
+                } label: {
                     Image(systemName: "cellularbars", variableValue: Double(wifi.bars) / 4.0)
                         .font(.system(size: 10))
                         .foregroundStyle(signalColor)
-                    Text(masked ? "xxxx-xxxx" : (wifi.ssid ?? "Wi-Fi"))
+                }
+                .buttonStyle(.plain)
+                .help(ssidMasked ? "Show network name" : "Mask network name")
+
+                Button {
+                    withAnimation(.easeInOut(duration: 0.15)) { expanded.toggle() }
+                } label: {
+                    Text(ssidMasked ? "xxxx-xxxx" : (wifi.ssid ?? "Wi-Fi"))
                         .font(.system(size: 10, weight: .medium))
                         .foregroundStyle(.secondary)
                 }
+                .buttonStyle(.plain)
+                .help(expanded ? "Hide Wi-Fi details" : "Show Wi-Fi details")
             }
-            .buttonStyle(.plain)
-            .help(expanded ? "Hide Wi-Fi details" : "Show Wi-Fi details")
 
             if expanded {
                 ForEach(rows) { row in
@@ -567,7 +573,7 @@ struct WiFiDetailLine: View {
         if let v = wifi.txRate   { r.append(Row(label: "Tx Rate",  value: "\(Int(v)) Mbps", mono: false)) }
         if let v = wifi.snr      { r.append(Row(label: "SNR",      value: "\(v) dB", mono: false)) }
         if let v = wifi.noise    { r.append(Row(label: "Noise",    value: "\(v) dBm", mono: false)) }
-        if let v = wifi.bssid    { r.append(Row(label: "BSSID",    value: masked ? maskMAC(v) : v, mono: true)) }
+        if let v = wifi.bssid    { r.append(Row(label: "BSSID",    value: ssidMasked ? maskMAC(v) : v, mono: true)) }
         return r
     }
 
