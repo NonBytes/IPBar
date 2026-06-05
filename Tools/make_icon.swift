@@ -1,76 +1,131 @@
 #!/usr/bin/env swift
-// Renders the IPBar app icon (macOS squircle + globe) at all iconset sizes.
+// Renders the IPBar app icon: a location pin holding "IP" sitting on a globe,
+// drawn as clean line-art on a light squircle, at all iconset sizes.
 // Usage: swift Tools/make_icon.swift  ->  writes IPBar.iconset/*.png
 import AppKit
 import CoreGraphics
+import CoreText
+import Foundation
 
 let cs = CGColorSpaceCreateDeviceRGB()
 func rgb(_ r: Double, _ g: Double, _ b: Double, _ a: Double = 1) -> CGColor {
     CGColor(colorSpace: cs, components: [CGFloat(r), CGFloat(g), CGFloat(b), CGFloat(a)])!
 }
 
-func drawIcon(in ctx: CGContext, size: CGFloat) {
+let bgColor  = rgb(0.97, 0.98, 1.00)
+let ink      = rgb(0.10, 0.11, 0.13)
+
+/// Draw a string centred at `center` using a bold font, filled with `color`.
+func drawIP(_ s: String, center: CGPoint, fontSize: CGFloat, color: CGColor, in ctx: CGContext) {
+    let font = CTFontCreateWithName("HelveticaNeue-Bold" as CFString, fontSize, nil)
+    let attrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: color]
+    let line = CTLineCreateWithAttributedString(NSAttributedString(string: s, attributes: attrs))
+    let b = CTLineGetBoundsWithOptions(line, .useGlyphPathBounds)
+    ctx.saveGState()
+    ctx.textMatrix = .identity
+    ctx.textPosition = CGPoint(x: center.x - b.width / 2 - b.origin.x,
+                               y: center.y - b.height / 2 - b.origin.y)
+    CTLineDraw(line, ctx)
+    ctx.restoreGState()
+}
+
+func drawIcon(in ctx: CGContext, size S: CGFloat) {
     ctx.setAllowsAntialiasing(true)
     ctx.interpolationQuality = .high
+    ctx.setLineCap(.round)
+    ctx.setLineJoin(.round)
 
-    // --- background squircle (macOS icon grid: ~80% of canvas, ~22% corner radius) ---
-    let margin = size * 0.0977
-    let side = size - 2 * margin
+    // --- background squircle (macOS grid: ~80% of canvas, ~22% corner radius) ---
+    let margin = S * 0.0977
+    let side = S - 2 * margin
     let rrect = CGRect(x: margin, y: margin, width: side, height: side)
     let radius = side * 0.2247
     let bg = CGPath(roundedRect: rrect, cornerWidth: radius, cornerHeight: radius, transform: nil)
 
     ctx.saveGState()
     ctx.addPath(bg); ctx.clip()
-    let grad = CGGradient(colorsSpace: cs,
-                          colors: [rgb(0.33, 0.62, 1.00), rgb(0.17, 0.23, 0.80)] as CFArray,
-                          locations: [0, 1])!
-    ctx.drawLinearGradient(grad,
-                           start: CGPoint(x: 0, y: size),
-                           end: CGPoint(x: 0, y: 0), options: [])
-    // soft top-left gloss
-    let gloss = CGPoint(x: margin + side * 0.30, y: margin + side * 0.76)
-    let glossGrad = CGGradient(colorsSpace: cs,
-                               colors: [rgb(1, 1, 1, 0.28), rgb(1, 1, 1, 0)] as CFArray,
-                               locations: [0, 1])!
-    ctx.drawRadialGradient(glossGrad, startCenter: gloss, startRadius: 0,
-                           endCenter: gloss, endRadius: side * 0.62, options: [])
+    ctx.setFillColor(bgColor)
+    ctx.fill(rrect)
     ctx.restoreGState()
 
-    // --- globe ---
-    let c = CGPoint(x: size / 2, y: size / 2)
-    let R = side * 0.300
-    let white = rgb(1, 1, 1, 0.96)
-    ctx.setStrokeColor(white)
-    ctx.setLineCap(.round)
+    let cx = margin + side / 2
+
+    // --- geometry ---
+    let gc  = CGPoint(x: cx, y: margin + side * 0.28)   // globe centre
+    let Rg  = side * 0.40                                // globe radius
+    let pc  = CGPoint(x: cx, y: margin + side * 0.655)  // pin head centre
+    let Rh  = side * 0.205                               // pin head radius
+    let tipY = margin + side * 0.355                     // pin tip
+    let Ri  = Rh * 0.60                                  // inner ring radius
+
+    let gridW  = side * 0.016
+    let ringW  = side * 0.026
+    let pinW   = side * 0.030
+
+    // ---------- GLOBE (clipped to the squircle so its bottom is cut flat) ----------
+    ctx.saveGState()
+    ctx.addPath(bg); ctx.clip()
+    ctx.setStrokeColor(ink)
 
     // grid lines, clipped to the globe disc
     ctx.saveGState()
-    ctx.addEllipse(in: CGRect(x: c.x - R, y: c.y - R, width: 2 * R, height: 2 * R))
+    ctx.addEllipse(in: CGRect(x: gc.x - Rg, y: gc.y - Rg, width: 2 * Rg, height: 2 * Rg))
     ctx.clip()
-    ctx.setLineWidth(side * 0.015)
-
+    ctx.setLineWidth(gridW)
     // equator + prime meridian
-    ctx.move(to: CGPoint(x: c.x, y: c.y - R)); ctx.addLine(to: CGPoint(x: c.x, y: c.y + R))
-    ctx.move(to: CGPoint(x: c.x - R, y: c.y)); ctx.addLine(to: CGPoint(x: c.x + R, y: c.y))
+    ctx.move(to: CGPoint(x: gc.x, y: gc.y - Rg)); ctx.addLine(to: CGPoint(x: gc.x, y: gc.y + Rg))
+    ctx.move(to: CGPoint(x: gc.x - Rg, y: gc.y)); ctx.addLine(to: CGPoint(x: gc.x + Rg, y: gc.y))
     ctx.strokePath()
-
-    // meridians (vertical ellipses)
-    for rx in [R * 0.58, R * 0.30] {
-        ctx.addEllipse(in: CGRect(x: c.x - rx, y: c.y - R, width: 2 * rx, height: 2 * R))
+    for rx in [Rg * 0.55, Rg * 0.27] {   // meridians
+        ctx.addEllipse(in: CGRect(x: gc.x - rx, y: gc.y - Rg, width: 2 * rx, height: 2 * Rg))
         ctx.strokePath()
     }
-    // latitudes (horizontal ellipses)
-    for ry in [R * 0.58, R * 0.30] {
-        ctx.addEllipse(in: CGRect(x: c.x - R, y: c.y - ry, width: 2 * R, height: 2 * ry))
+    for ry in [Rg * 0.55, Rg * 0.27] {   // latitudes
+        ctx.addEllipse(in: CGRect(x: gc.x - Rg, y: gc.y - ry, width: 2 * Rg, height: 2 * ry))
         ctx.strokePath()
     }
     ctx.restoreGState()
 
-    // outer ring on top
-    ctx.setLineWidth(side * 0.020)
-    ctx.addEllipse(in: CGRect(x: c.x - R, y: c.y - R, width: 2 * R, height: 2 * R))
+    // globe outline
+    ctx.setLineWidth(ringW)
+    ctx.addEllipse(in: CGRect(x: gc.x - Rg, y: gc.y - Rg, width: 2 * Rg, height: 2 * Rg))
     ctx.strokePath()
+    ctx.restoreGState()
+
+    // ---------- PIN (drawn opaque over the globe) ----------
+    // tangent points from the tip to the head circle
+    let d = pc.y - tipY
+    let beta = acos(Rh / d)
+    let aRight = -CGFloat.pi / 2 + beta            // right tangent point angle
+    let aLeft  =  3 * CGFloat.pi / 2 - beta        // left tangent point (swept ccw over the top)
+    let tip = CGPoint(x: cx, y: tipY)
+    let pRight = CGPoint(x: pc.x + Rh * cos(aRight), y: pc.y + Rh * sin(aRight))
+
+    let pin = CGMutablePath()
+    pin.move(to: tip)
+    pin.addLine(to: pRight)
+    pin.addArc(center: pc, radius: Rh, startAngle: aRight, endAngle: aLeft, clockwise: false)
+    pin.closeSubpath()
+
+    // mask the globe behind the pin, then stroke the outline
+    ctx.saveGState()
+    ctx.addPath(pin)
+    ctx.setFillColor(bgColor)
+    ctx.fillPath()
+    ctx.restoreGState()
+
+    ctx.setStrokeColor(ink)
+    ctx.setLineWidth(pinW)
+    ctx.addPath(pin)
+    ctx.strokePath()
+
+    // inner ring (white interior so globe lines never show through) + "IP"
+    let innerRect = CGRect(x: pc.x - Ri, y: pc.y - Ri, width: 2 * Ri, height: 2 * Ri)
+    ctx.setFillColor(bgColor); ctx.addEllipse(in: innerRect); ctx.fillPath()
+    ctx.setLineWidth(ringW); ctx.setStrokeColor(ink)
+    ctx.addEllipse(in: innerRect); ctx.strokePath()
+
+    drawIP("IP", center: pc, fontSize: Ri * 1.30, color: ink, in: ctx)
 }
 
 func renderPNG(pixels: Int, to url: URL) {
