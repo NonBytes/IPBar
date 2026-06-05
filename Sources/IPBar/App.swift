@@ -1,5 +1,7 @@
 import SwiftUI
 import AppKit
+import CoreGraphics
+import CoreText
 import ServiceManagement
 import UserNotifications
 
@@ -70,7 +72,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
-// MARK: - Menu bar label (VPN indicator + optional IP text)
+// MARK: - Menu bar label (the app's "IP" pin + optional IP text)
 
 struct MenuBarLabel: View {
     @ObservedObject var model: IPModel
@@ -78,13 +80,76 @@ struct MenuBarLabel: View {
 
     var body: some View {
         HStack(spacing: 4) {
-            Image(systemName: model.vpnActive ? "lock.shield.fill" : "globe")
+            Image(nsImage: ipPinMenuImage(filled: model.vpnActive))
+                .renderingMode(.template)
             if mode == .publicIP, let ip = model.publicInfo.ipv4 ?? model.publicInfo.ipv6 {
                 Text(ip).font(.system(size: 12, weight: .medium))
             } else if mode == .localIP, let ip = model.primaryLocalIP {
                 Text(ip).font(.system(size: 12, weight: .medium))
             }
         }
+    }
+}
+
+/// A template menu-bar image matching the app icon's "IP" location pin.
+/// When `filled` (VPN active) the pin is solid with the letters knocked out.
+func ipPinMenuImage(filled: Bool) -> NSImage {
+    let image = NSImage(size: NSSize(width: 17, height: 19), flipped: false) { rect in
+        guard let ctx = NSGraphicsContext.current?.cgContext else { return false }
+        drawIPPin(in: ctx, rect: rect, filled: filled)
+        return true
+    }
+    image.isTemplate = true   // menu bar tints it for light/dark automatically
+    return image
+}
+
+private func drawIPPin(in ctx: CGContext, rect: CGRect, filled: Bool) {
+    ctx.setAllowsAntialiasing(true)
+    ctx.setLineJoin(.round); ctx.setLineCap(.round)
+
+    let w = rect.width, h = rect.height
+    let cx = rect.midX
+    let Rh = w * 0.40                                   // head radius
+    let pc = CGPoint(x: cx, y: rect.minY + h * 0.62)    // head centre
+    let tipY = rect.minY + h * 0.05                     // tip
+    let Ri = Rh * 0.55                                  // inner ring radius
+
+    let d = pc.y - tipY
+    let beta = acos(min(0.999, Rh / d))
+    let aRight = -CGFloat.pi / 2 + beta
+    let aLeft  =  3 * CGFloat.pi / 2 - beta
+    let tip = CGPoint(x: cx, y: tipY)
+    let pRight = CGPoint(x: pc.x + Rh * cos(aRight), y: pc.y + Rh * sin(aRight))
+
+    let pin = CGMutablePath()
+    pin.move(to: tip)
+    pin.addLine(to: pRight)
+    pin.addArc(center: pc, radius: Rh, startAngle: aRight, endAngle: aLeft, clockwise: false)
+    pin.closeSubpath()
+
+    let black = NSColor.black.cgColor
+
+    func drawIP(blend: CGBlendMode) {
+        let font = CTFontCreateWithName("HelveticaNeue-Bold" as CFString, Ri * 1.5, nil)
+        let line = CTLineCreateWithAttributedString(
+            NSAttributedString(string: "IP", attributes: [.font: font, .foregroundColor: black]))
+        let b = CTLineGetBoundsWithOptions(line, .useGlyphPathBounds)
+        ctx.saveGState()
+        ctx.setBlendMode(blend)
+        ctx.textMatrix = .identity
+        ctx.textPosition = CGPoint(x: pc.x - b.width / 2 - b.origin.x,
+                                   y: pc.y - b.height / 2 - b.origin.y)
+        CTLineDraw(line, ctx)
+        ctx.restoreGState()
+    }
+
+    if filled {
+        ctx.addPath(pin); ctx.setFillColor(black); ctx.fillPath()
+        drawIP(blend: .clear)        // knock the letters out of the solid pin
+    } else {
+        ctx.setStrokeColor(black); ctx.setLineWidth(w * 0.10)
+        ctx.addPath(pin); ctx.strokePath()
+        drawIP(blend: .normal)
     }
 }
 
