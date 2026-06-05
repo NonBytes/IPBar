@@ -1,0 +1,20 @@
+# Build artifacts
+.build/
+*.app
+*.dmg
+
+# Generated icon intermediate (regenerate with `swift Tools/make_icon.swift`)
+IPBar.iconset/
+
+# macOS
+.DS_Store
+
+# SwiftPM / Xcode user-specific state
+.swiftpm/
+**/xcuserdata/
+*.xcuserstate
+
+# Local tooling / editor state
+.claude/
+.vscode/
+.idea/

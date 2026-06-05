@@ -1,0 +1,241 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		DE00000000000000000000E0 /* Core.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE00000000000000000000D0 /* Core.swift */; };
+		DE00000000000000000000E1 /* App.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE00000000000000000000D1 /* App.swift */; };
+		DE00000000000000000000E2 /* IPBar.icns in Resources */ = {isa = PBXBuildFile; fileRef = DE00000000000000000000D3 /* IPBar.icns */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		DE00000000000000000000C5 /* IPBar.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = IPBar.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		DE00000000000000000000D0 /* Core.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core.swift; sourceTree = "<group>"; };
+		DE00000000000000000000D1 /* App.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App.swift; sourceTree = "<group>"; };
+		DE00000000000000000000D2 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		DE00000000000000000000D3 /* IPBar.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = IPBar.icns; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		DE00000000000000000000C8 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		DE00000000000000000000C1 = {
+			isa = PBXGroup;
+			children = (
+				DE00000000000000000000C3 /* IPBar */,
+				DE00000000000000000000D2 /* Info.plist */,
+				DE00000000000000000000D3 /* IPBar.icns */,
+				DE00000000000000000000C2 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		DE00000000000000000000C2 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				DE00000000000000000000C5 /* IPBar.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		DE00000000000000000000C3 /* IPBar */ = {
+			isa = PBXGroup;
+			children = (
+				DE00000000000000000000D0 /* Core.swift */,
+				DE00000000000000000000D1 /* App.swift */,
+			);
+			path = Sources/IPBar;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		DE00000000000000000000C4 /* IPBar */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = DE00000000000000000000CA /* Build configuration list for PBXNativeTarget "IPBar" */;
+			buildPhases = (
+				DE00000000000000000000C6 /* Sources */,
+				DE00000000000000000000C8 /* Frameworks */,
+				DE00000000000000000000C7 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = IPBar;
+			productName = IPBar;
+			productReference = DE00000000000000000000C5 /* IPBar.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		DE00000000000000000000C0 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1600;
+				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+					DE00000000000000000000C4 = {
+						CreatedOnToolsVersion = 16.0;
+					};
+				};
+			};
+			buildConfigurationList = DE00000000000000000000C9 /* Build configuration list for PBXProject "IPBar" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = DE00000000000000000000C1;
+			productRefGroup = DE00000000000000000000C2 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				DE00000000000000000000C4 /* IPBar */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		DE00000000000000000000C7 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				DE00000000000000000000E2 /* IPBar.icns in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		DE00000000000000000000C6 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				DE00000000000000000000E0 /* Core.swift in Sources */,
+				DE00000000000000000000E1 /* App.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		DE00000000000000000000CB /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		DE00000000000000000000CC /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				SDKROOT = macosx;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+			};
+			name = Release;
+		};
+		DE00000000000000000000CD /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GENERATE_ASSET_SYMBOLS = NO;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				COMBINE_HIDPI_IMAGES = YES;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_HARDENED_RUNTIME = YES;
+				INFOPLIST_FILE = Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nonbytes.ipbar;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		DE00000000000000000000CE /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GENERATE_ASSET_SYMBOLS = NO;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				COMBINE_HIDPI_IMAGES = YES;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_HARDENED_RUNTIME = YES;
+				INFOPLIST_FILE = Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nonbytes.ipbar;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		DE00000000000000000000C9 /* Build configuration list for PBXProject "IPBar" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				DE00000000000000000000CB /* Debug */,
+				DE00000000000000000000CC /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		DE00000000000000000000CA /* Build configuration list for PBXNativeTarget "IPBar" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				DE00000000000000000000CD /* Debug */,
+				DE00000000000000000000CE /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = DE00000000000000000000C0 /* Project object */;
+}
