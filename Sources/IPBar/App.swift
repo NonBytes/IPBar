@@ -14,8 +14,8 @@ struct IPBarApp: App {
         DefaultsKey.registerDefaults()
         let args = CommandLine.arguments
         if args.contains("--dump")   { DumpMode.run() }
-        if args.contains("--routes") { DumpMode.runSystem(SystemInfo.routeTable) }
-        if args.contains("--ports")  { DumpMode.runSystem(SystemInfo.openPorts) }
+        if args.contains("--routes") { DumpMode.runSystem { await SystemInfo.routeTable() } }
+        if args.contains("--ports")  { DumpMode.runSystem { await SystemInfo.openPorts() } }
         if args.contains("--diag")   { DumpMode.runDiag() }
         if args.contains("--lan")    { DumpMode.runLan(deep: args.contains("--deep")) }
     }
