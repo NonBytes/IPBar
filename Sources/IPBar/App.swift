@@ -94,7 +94,7 @@ struct MenuBarLabel: View {
 /// A template menu-bar image matching the app icon's "IP" location pin.
 /// When `filled` (VPN active) the pin is solid with the letters knocked out.
 func ipPinMenuImage(filled: Bool) -> NSImage {
-    let image = NSImage(size: NSSize(width: 17, height: 19), flipped: false) { rect in
+    let image = NSImage(size: NSSize(width: 14, height: 16), flipped: false) { rect in
         guard let ctx = NSGraphicsContext.current?.cgContext else { return false }
         drawIPPin(in: ctx, rect: rect, filled: filled)
         return true
