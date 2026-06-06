@@ -388,9 +388,11 @@ struct InterfaceRow: View {
     @AppStorage(DefaultsKey.showIPv6) private var showIPv6 = true
     @AppStorage(DefaultsKey.showMAC) private var showMAC = true
     @AppStorage(DefaultsKey.showWiFiDetails) private var showWiFiDetails = true
+    @AppStorage(DefaultsKey.showDNS) private var showDNS = true
     @State private var masked = false
 
     var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: iface.kind.symbol)
                 .font(.system(size: 16, weight: .semibold))
@@ -416,6 +418,7 @@ struct InterfaceRow: View {
                     if subName == nil { Badge(text: iface.bsdName, color: .blue) }
                     if iface.kind == .vpn { Badge(text: "VPN", color: .purple) }
                     if iface.isPrimary { Badge(text: "DEFAULT", color: .green) }
+                    if let cfg = iface.configMethod { Badge(text: cfg, color: .gray) }
                 }
                 // Subtitle: "AX88179B  en9" — hardware name + BSD badge (no parens).
                 if let subName {
@@ -474,7 +477,37 @@ struct InterfaceRow: View {
             }
             .animation(.easeInOut(duration: 0.15), value: masked)
         }
+            if showDNS { dnsBlock }
+        }
         .contentShape(Rectangle())
+    }
+
+    /// Per-interface DNS servers + search domains + config method.
+    @ViewBuilder private var dnsBlock: some View {
+        if !iface.dnsServers.isEmpty || !iface.searchDomains.isEmpty {
+            VStack(alignment: .leading, spacing: 1) {
+                if !iface.dnsServers.isEmpty {
+                    let list = (masked ? iface.dnsServers.map(maskIPFull) : iface.dnsServers)
+                        .joined(separator: ", ")
+                    HStack(alignment: .top, spacing: 5) {
+                        Text("DNS").font(.system(size: 9, weight: .semibold)).foregroundStyle(.tertiary)
+                        Text(list).font(.system(size: 9, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                if !masked, !iface.searchDomains.isEmpty {
+                    HStack(alignment: .top, spacing: 5) {
+                        Text("Search").font(.system(size: 9, weight: .semibold)).foregroundStyle(.tertiary)
+                        Text(iface.searchDomains.joined(separator: ", "))
+                            .font(.system(size: 9)).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+            .padding(.leading, 34)   // align under the name column (icon 24 + spacing 10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
 
     private var secondaryShown: [String] {
@@ -632,6 +665,7 @@ struct SettingsView: View {
     @AppStorage(DefaultsKey.showIPv6) private var showIPv6 = true
     @AppStorage(DefaultsKey.showMAC) private var showMAC = true
     @AppStorage(DefaultsKey.showWiFiDetails) private var showWiFiDetails = true
+    @AppStorage(DefaultsKey.showDNS) private var showDNS = true
 
     @State private var launchAtLogin = (SMAppService.mainApp.status == .enabled)
 
@@ -659,6 +693,7 @@ struct SettingsView: View {
                 Toggle("Show IPv6 addresses", isOn: $showIPv6)
                 Toggle("Show MAC address", isOn: $showMAC)
                 Toggle("Show Wi-Fi details (signal, channel)", isOn: $showWiFiDetails)
+                Toggle("Show DNS, search domains & config (DHCP/Manual)", isOn: $showDNS)
                 Toggle("Show loopback (lo0)", isOn: $showLoopback)
                 Toggle("Show link-local IPv6 (fe80::)", isOn: $showLinkLocalV6)
                     .disabled(!showIPv6)

@@ -21,6 +21,7 @@ enum DefaultsKey {
     static let showIPv6         = "showIPv6"
     static let showMAC          = "showMAC"
     static let showWiFiDetails  = "showWiFiDetails"
+    static let showDNS          = "showDNS"
     static let history          = "ip_history"
 
     static func registerDefaults() {
@@ -35,6 +36,7 @@ enum DefaultsKey {
             showIPv6: true,
             showMAC: true,
             showWiFiDetails: true,
+            showDNS: true,
         ])
         // One-time migration: ensure ISP/country lookup is on by default.
         // (Previous releases shipped with enableISP defaulting to false.)
@@ -112,13 +114,17 @@ struct NetworkInterface: Identifiable, Sendable, Equatable {
     var isPrimary: Bool           // is the default-route interface
     let isUp: Bool
     var wifi: WiFiDetails?        // populated for Wi-Fi interfaces
+    var configMethod: String?    // "DHCP" / "Manual" / … (IPv4 config method)
+    var dnsServers: [String]     // resolver addresses for this service
+    var searchDomains: [String]  // DNS search domains for this service
 
     init(bsdName: String, displayName: String, hardwareName: String = "",
          serviceName: String? = nil,
          kind: InterfaceKind,
          ipv4: [String], ipv6: [String], ipv6LinkLocal: [String] = [],
          subnetPrefix: Int? = nil, mac: String? = nil, gateway: String? = nil,
-         isPrimary: Bool = false, isUp: Bool, wifi: WiFiDetails? = nil) {
+         isPrimary: Bool = false, isUp: Bool, wifi: WiFiDetails? = nil,
+         configMethod: String? = nil, dnsServers: [String] = [], searchDomains: [String] = []) {
         self.id = bsdName
         self.bsdName = bsdName
         self.displayName = displayName
@@ -134,6 +140,9 @@ struct NetworkInterface: Identifiable, Sendable, Equatable {
         self.isPrimary = isPrimary
         self.isUp = isUp
         self.wifi = wifi
+        self.configMethod = configMethod
+        self.dnsServers = dnsServers
+        self.searchDomains = searchDomains
     }
 
     /// IPv4 is the headline; fall back to IPv6 only when there's no IPv4.
@@ -339,6 +348,7 @@ enum NetworkScanner {
 
     static func scan() -> [NetworkInterface] {
         let (serviceMap, hardwareMap) = allNames()
+        let svcDetails = serviceDetails()
         let route = primaryRoute()
         var map: [String: Holder] = [:]
 
@@ -403,6 +413,7 @@ enum NetworkScanner {
             }()
             let isPrimary = (name == route.interface)
             let wifi = (kind == .wifi) ? WiFiScanner.details(for: name) : nil
+            let det = svcDetails[name]
             interfaces.append(
                 NetworkInterface(
                     bsdName: name, displayName: display, hardwareName: hwName,
@@ -411,7 +422,9 @@ enum NetworkScanner {
                     ipv4: h.ipv4, ipv6: h.ipv6, ipv6LinkLocal: h.ipv6ll,
                     subnetPrefix: h.prefix, mac: h.mac,
                     gateway: isPrimary ? route.gateway : nil,
-                    isPrimary: isPrimary, isUp: h.up, wifi: wifi
+                    isPrimary: isPrimary, isUp: h.up, wifi: wifi,
+                    configMethod: configLabel(det?.config),
+                    dnsServers: det?.dns ?? [], searchDomains: det?.search ?? []
                 )
             )
         }
@@ -521,6 +534,52 @@ enum NetworkScanner {
         }
 
         return (service, hardware)
+    }
+
+    /// Per-interface IPv4 config method + effective DNS servers / search domains,
+    /// keyed by BSD name. Config method comes from the service's Setup protocol;
+    /// DNS/search come from the live State store (so DHCP-provided values show).
+    static func serviceDetails() -> [String: (config: String?, dns: [String], search: [String])] {
+        var out: [String: (config: String?, dns: [String], search: [String])] = [:]
+        guard let prefs = SCPreferencesCreate(nil, "IPBar" as CFString, nil),
+              let set = SCNetworkSetCopyCurrent(prefs),
+              let services = SCNetworkSetCopyServices(set) as? [SCNetworkService] else { return out }
+        let store = SCDynamicStoreCreate(nil, "IPBar" as CFString, nil, nil)
+        for svc in services {
+            guard let intf = SCNetworkServiceGetInterface(svc),
+                  let bsd  = SCNetworkInterfaceGetBSDName(intf) as String?,
+                  let sid  = SCNetworkServiceGetServiceID(svc) as String? else { continue }
+
+            var config: String? = nil
+            if let proto = SCNetworkServiceCopyProtocol(svc, kSCNetworkProtocolTypeIPv4),
+               let cfg = SCNetworkProtocolGetConfiguration(proto) as? [String: Any] {
+                config = cfg["ConfigMethod"] as? String
+            }
+
+            var dns: [String] = []
+            var search: [String] = []
+            if let store,
+               let d = SCDynamicStoreCopyValue(store, "State:/Network/Service/\(sid)/DNS" as CFString) as? [String: Any] {
+                dns = (d["ServerAddresses"] as? [String]) ?? []
+                search = (d["SearchDomains"] as? [String]) ?? []
+            }
+            out[bsd] = (config, dns, search)
+        }
+        return out
+    }
+
+    /// Friendly label for an IPv4 ConfigMethod value.
+    static func configLabel(_ raw: String?) -> String? {
+        switch raw {
+        case "DHCP":      return "DHCP"
+        case "Manual":    return "Manual"
+        case "BOOTP":     return "BOOTP"
+        case "INFORM":    return "Manual"        // manual IP, DHCP for the rest
+        case "Automatic": return "Automatic"
+        case "LinkLocal": return "Link-local"
+        case .some(let s): return s
+        case .none:        return nil
+        }
     }
 }
 
@@ -1338,8 +1397,11 @@ enum DumpMode {
         print("Interfaces (\(interfaces.count)):")
         for i in interfaces {
             let star = i.isPrimary ? " *default*" : ""
-            print("  [\(i.kind.rawValue)] \(i.displayName)\(star)")
+            let cfg = i.configMethod.map { " (\($0))" } ?? ""
+            print("  [\(i.kind.rawValue)] \(i.displayName)\(star)\(cfg)")
             print("      headline: \(i.cidr ?? i.primaryIP ?? "—")")
+            if !i.dnsServers.isEmpty { print("      dns:      \(i.dnsServers.joined(separator: ", "))") }
+            if !i.searchDomains.isEmpty { print("      search:   \(i.searchDomains.joined(separator: ", "))") }
             if let mac = i.mac { print("      mac:      \(mac)") }
             if let gw = i.gateway { print("      gateway:  \(gw)") }
             if !i.secondaryIPs.isEmpty { print("      other:    \(i.secondaryIPs.joined(separator: ", "))") }
