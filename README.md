@@ -28,6 +28,9 @@
   provider rate-limits.
 - **Wi-Fi details** — SSID (with Location access), signal strength + bars,
   channel, band, PHY mode (Wi-Fi 6, etc.), security, and Tx rate, via CoreWLAN.
+- **DNS & config** — per interface: the IPv4 **config method** (DHCP / Manual
+  badge), plus DNS servers and search domains (the effective, DHCP-provided
+  values) behind a tap-to-expand **DNS** disclosure.
 - **Network diagnostics** — a popup that pings the gateway and public anchors
   (1.1.1.1 / 8.8.8.8), queries each configured DNS server with `dig`, and times
   a DNS resolution — each with latency + reachability.
@@ -37,8 +40,11 @@
 - **Route table / open ports** — sortable popup tables (ports mapped to process).
 - **Hosts file editor** — view and edit `/etc/hosts` with an admin auth prompt.
 - **Click to copy** — click any address to copy it to the clipboard.
-- **Mask toggle** — click an interface/public-IP name to mask addresses
-  (`xxx.xxx.xxx.155`); click again to reveal.
+- **Privacy masking** — independent click-to-mask toggles across the panel: the
+  **hostname** (tap the header), each interface's **IP / MAC / subnet / gateway /
+  DNS** (tap its name), the **public IP + ISP** (tap "Public IP"), and the
+  **Wi-Fi SSID / BSSID** (tap the signal icon). Click again to reveal — handy for
+  screenshots.
 - **History** — records public-IP / primary-interface changes over time.
 - **Auto refresh** — re-scans automatically when the network path changes
   (`NWPathMonitor`), plus a manual Refresh button.
@@ -116,13 +122,15 @@ Both build systems compile the **same** `Sources/IPBar/*.swift` and use the same
 - **Auto-refresh**: off / 15s / 30s / 1m / 5m
 - **Show Wi-Fi details** (signal, channel, etc.). Reading the **SSID** needs
   Location access (macOS 14+ gates it); the other Wi-Fi fields work without it.
+- **Show DNS, search domains & config** (DHCP/Manual badge) — on by default.
 - **Show loopback** / **show link-local IPv6** toggles
 - **Public IP**: enable/disable the lookup, optional **ISP / country** (resolved
   through a provider fallback chain), and **notify on public-IP change**. Turn
   both off to keep every lookup on-device.
 
 Per interface the panel also shows the **subnet** (`/24`), **gateway**, **MAC**,
-and a **DEFAULT** badge on the default-route interface.
+**DNS / search domains** (tap "DNS"), a **DHCP / Manual** badge, and a
+**DEFAULT** badge on the default-route interface.
 
 ## Scripts & tests
 
