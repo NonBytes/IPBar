@@ -487,13 +487,15 @@ struct InterfaceRow: View {
         if !iface.dnsServers.isEmpty || !iface.searchDomains.isEmpty {
             VStack(alignment: .leading, spacing: 1) {
                 if !iface.dnsServers.isEmpty {
-                    let list = (masked ? iface.dnsServers.map(maskIPFull) : iface.dnsServers)
-                        .joined(separator: ", ")
+                    let list = masked ? iface.dnsServers.map(maskIPFull) : iface.dnsServers
                     HStack(alignment: .top, spacing: 5) {
                         Text("DNS").font(.system(size: 9, weight: .semibold)).foregroundStyle(.tertiary)
-                        Text(list).font(.system(size: 9, design: .monospaced))
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
+                        VStack(alignment: .leading, spacing: 1) {
+                            ForEach(list, id: \.self) { dns in
+                                Text(dns).font(.system(size: 9, design: .monospaced))
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
                     }
                 }
                 if !masked, !iface.searchDomains.isEmpty {
