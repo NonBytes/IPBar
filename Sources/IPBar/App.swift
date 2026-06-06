@@ -390,9 +390,9 @@ struct InterfaceRow: View {
     @AppStorage(DefaultsKey.showWiFiDetails) private var showWiFiDetails = true
     @AppStorage(DefaultsKey.showDNS) private var showDNS = true
     @State private var masked = false
+    @State private var dnsExpanded = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: iface.kind.symbol)
                 .font(.system(size: 16, weight: .semibold))
@@ -474,42 +474,40 @@ struct InterfaceRow: View {
                                  color: .secondary.opacity(0.8), onCopy: { _ in onCopy(ip) })
                     }
                 }
-            }
-            .animation(.easeInOut(duration: 0.15), value: masked)
-        }
-            if showDNS { dnsBlock }
-        }
-        .contentShape(Rectangle())
-    }
+                // DNS + search domains — on the IP side; tap "DNS" to expand.
+                if showDNS, !iface.dnsServers.isEmpty {
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.15)) { dnsExpanded.toggle() }
+                    } label: {
+                        HStack(spacing: 3) {
+                            Text("DNS").font(.system(size: 9, weight: .semibold))
+                            Image(systemName: dnsExpanded ? "chevron.up" : "chevron.down")
+                                .font(.system(size: 7, weight: .semibold))
+                        }
+                        .foregroundStyle(.tertiary)
+                    }
+                    .buttonStyle(.plain)
+                    .help(dnsExpanded ? "Hide DNS" : "Show DNS")
+                    .padding(.top, 1)
 
-    /// Per-interface DNS servers + search domains + config method.
-    @ViewBuilder private var dnsBlock: some View {
-        if !iface.dnsServers.isEmpty || !iface.searchDomains.isEmpty {
-            VStack(alignment: .leading, spacing: 1) {
-                if !iface.dnsServers.isEmpty {
-                    let list = masked ? iface.dnsServers.map(maskIPFull) : iface.dnsServers
-                    HStack(alignment: .top, spacing: 5) {
-                        Text("DNS").font(.system(size: 9, weight: .semibold)).foregroundStyle(.tertiary)
-                        VStack(alignment: .leading, spacing: 1) {
-                            ForEach(list, id: \.self) { dns in
-                                Text(dns).font(.system(size: 9, design: .monospaced))
-                                    .foregroundStyle(.secondary)
+                    if dnsExpanded {
+                        let list = masked ? iface.dnsServers.map(maskIPFull) : iface.dnsServers
+                        ForEach(list, id: \.self) { dns in
+                            Text(dns).font(.system(size: 9, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                        }
+                        if !masked, !iface.searchDomains.isEmpty {
+                            ForEach(iface.searchDomains, id: \.self) { d in
+                                Text(d).font(.system(size: 9)).foregroundStyle(.secondary)
                             }
                         }
                     }
                 }
-                if !masked, !iface.searchDomains.isEmpty {
-                    HStack(alignment: .top, spacing: 5) {
-                        Text("Search").font(.system(size: 9, weight: .semibold)).foregroundStyle(.tertiary)
-                        Text(iface.searchDomains.joined(separator: ", "))
-                            .font(.system(size: 9)).foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
             }
-            .padding(.leading, 34)   // align under the name column (icon 24 + spacing 10)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .animation(.easeInOut(duration: 0.15), value: masked)
+            .animation(.easeInOut(duration: 0.15), value: dnsExpanded)
         }
+        .contentShape(Rectangle())
     }
 
     private var secondaryShown: [String] {
