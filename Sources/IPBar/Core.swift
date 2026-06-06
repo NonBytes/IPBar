@@ -962,6 +962,12 @@ func maskIPFull(_ raw: String) -> String {
     return raw
 }
 
+/// Mask a hostname, keeping its separators (".", "-", ":").
+/// "Ready-Solo-One.local" → "xxxxx-xxxx-xxx.xxxxx"
+func maskHostname(_ s: String) -> String {
+    String(s.map { ".-:".contains($0) ? $0 : "x" })
+}
+
 /// Mask a MAC address — every octet. "C8:A3:62:D0:A8:71" → "xx:xx:xx:xx:xx:xx"
 func maskMAC(_ raw: String) -> String {
     let parts = raw.split(separator: ":", omittingEmptySubsequences: false)

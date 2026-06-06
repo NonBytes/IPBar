@@ -165,6 +165,7 @@ struct ContentView: View {
     @State private var screen: PanelScreen = .main
     @State private var toast: String? = nil
     @State private var toastTask: Task<Void, Never>? = nil
+    @State private var hostMasked = false
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -228,8 +229,17 @@ struct ContentView: View {
     private var header: some View {
         HStack(alignment: .firstTextBaseline) {
             VStack(alignment: .leading, spacing: 1) {
-                Text("Current IP Addresses").font(.system(size: 14, weight: .bold))
-                Text(model.hostName).font(.system(size: 10)).foregroundStyle(.secondary)
+                Button {
+                    withAnimation(.easeInOut(duration: 0.15)) { hostMasked.toggle() }
+                } label: {
+                    Text("Current IP Addresses")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(.primary)
+                }
+                .buttonStyle(.plain)
+                .help(hostMasked ? "Show hostname" : "Mask hostname")
+                Text(hostMasked ? maskHostname(model.hostName) : model.hostName)
+                    .font(.system(size: 10)).foregroundStyle(.secondary)
             }
             Spacer()
             if model.isRefreshing {

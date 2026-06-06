@@ -138,6 +138,11 @@ final class IPBarTests: XCTestCase {
         XCTAssertEqual(maskMAC("b2:f8:9a:b6:7e:56"), "xx:xx:xx:xx:xx:xx")
     }
 
+    func testMaskHostname() {
+        XCTAssertEqual(maskHostname("Ready-Solo-One.local"), "xxxxx-xxxx-xxx.xxxxx")
+        XCTAssertEqual(maskHostname("mac.lan"), "xxx.xxx")
+    }
+
     // MARK: lsof parsing (port -> process mapping)
 
     func testParsePortsMapsProcess() {
