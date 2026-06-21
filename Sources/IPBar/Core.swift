@@ -1365,10 +1365,8 @@ enum HostsFile {
             .appendingPathComponent("ipbar_hosts_\(UUID().uuidString)")
         try content.write(to: tmp, atomically: true, encoding: .utf8)
 
-        let script = """
-        do shell script "cp \(tmp.path.shellEscaped) /etc/hosts" \\
-            with administrator privileges
-        """
+        // Single line: AppleScript does not accept "\" as a line-continuation.
+        let script = "do shell script \"cp \(tmp.path.shellEscaped) /etc/hosts\" with administrator privileges"
         try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 var err: NSDictionary?
