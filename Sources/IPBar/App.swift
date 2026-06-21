@@ -280,9 +280,11 @@ struct ContentView: View {
             } label: { Image(systemName: "gearshape") }
                 .help("Settings")
             Spacer()
-            Button(role: .destructive) { NSApp.terminate(nil) } label: {
-                Image(systemName: "power")
-            }.tint(.red).help("Quit")
+            // Plain bordered button + explicit red icon. (Avoid role:.destructive
+            // here — some macOS versions render it as a solid red filled button.)
+            Button { NSApp.terminate(nil) } label: {
+                Image(systemName: "power").foregroundStyle(.red)
+            }.help("Quit")
         }
         .buttonStyle(.bordered)
         .controlSize(.small)
