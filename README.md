@@ -70,7 +70,7 @@ a proper menu-bar-only app and stays resident.
 ### Option B — command line / SwiftPM
 
 ```bash
-./build.sh                 # compiles + bundles IPBar.app (ad-hoc signed)
+./build.sh                 # compiles, bundles & signs IPBar.app (see Distribution)
 open IPBar.app             # launch (icon appears in the menu bar)
 cp -R IPBar.app /Applications/   # install for everyday use
 ```
@@ -107,7 +107,9 @@ Package.swift            SwiftPM manifest (same sources, for CLI builds)
 Sources/IPBar/Core.swift Models, getifaddrs scanner, public-IP service, view model
 Sources/IPBar/App.swift  @main entry, MenuBarExtra, SwiftUI views
 Info.plist               Bundle metadata (LSUIElement = menu-bar-only)
-build.sh                 SwiftPM compile + assemble + ad-hoc sign IPBar.app
+build.sh                 SwiftPM compile + assemble + sign IPBar.app
+Tools/make_icon.swift    Renders IPBar.iconset (the "IP" location-pin icon)
+Tools/package_dmg.sh     Builds IPBar.dmg; notarizes when a Developer ID is set
 ```
 
 Both build systems compile the **same** `Sources/IPBar/*.swift` and use the same
@@ -135,7 +137,7 @@ Per interface the panel also shows the **subnet** (`/24`), **gateway**, **MAC**,
 ## Scripts & tests
 
 ```bash
-swift test                       # unit tests (headline rule, classification, CIDR)
+swift test                       # unit tests (headline, masking, parsing, classification)
 swift Tools/make_icon.swift      # regenerate IPBar.iconset, then:
 iconutil -c icns IPBar.iconset -o IPBar.icns
 ./Tools/package_dmg.sh           # build IPBar.dmg (prints notarization steps)
