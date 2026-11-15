@@ -333,4 +333,66 @@ final class IPBarTests: XCTestCase {
         XCTAssertEqual(formatRate(204_800), "200.0 KB/s")
         XCTAssertEqual(formatRate(5 * 1_048_576), "5.0 MB/s")
     }
+
+    // MARK: traceroute parsing
+
+    func testParseTracerouteResolvedHops() {
+        let raw = """
+        traceroute to 1.1.1.1 (1.1.1.1), 6 hops max, 40 byte packets
+         1  192.168.111.1 (192.168.111.1)  0.914 ms
+         2  edge-router.example.net (100.118.0.1)  1.987 ms
+         3  58.64.114.55 (58.64.114.55)  4.700 ms  4.500 ms
+         6  *
+        """
+        let hops = SystemInfo.parseTraceroute(raw)
+        XCTAssertEqual(hops.count, 4)
+
+        // "192.168.111.1 (192.168.111.1)" — no PTR, so traceroute repeats the
+        // IP as its own "hostname"; the parser recognizes that and leaves
+        // `host` nil rather than reporting a fake name.
+        XCTAssertEqual(hops[0].index, 1)
+        XCTAssertNil(hops[0].host)
+        XCTAssertEqual(hops[0].ip, "192.168.111.1")
+        XCTAssertEqual(hops[0].latencyMs, 0.914)
+        XCTAssertFalse(hops[0].timedOut)
+
+        // A real PTR record → host set from the name, ip from the parens.
+        let resolved = hops.first { $0.index == 2 }
+        XCTAssertEqual(resolved?.host, "edge-router.example.net")
+        XCTAssertEqual(resolved?.ip, "100.118.0.1")
+        XCTAssertEqual(resolved?.latencyMs, 1.987)
+
+        let timeout = hops.first { $0.index == 6 }
+        XCTAssertEqual(timeout?.timedOut, true)
+        XCTAssertNil(timeout?.latencyMs)
+        XCTAssertNil(timeout?.host)
+    }
+
+    // MARK: Wake-on-LAN MAC parsing
+
+    func testParseMACAcceptsColonAndDashSeparators() throws {
+        XCTAssertEqual(try WakeOnLAN.parseMAC("C8:A3:62:D0:A8:71"),
+                       [0xC8, 0xA3, 0x62, 0xD0, 0xA8, 0x71])
+        XCTAssertEqual(try WakeOnLAN.parseMAC("c8-a3-62-d0-a8-71"),
+                       [0xC8, 0xA3, 0x62, 0xD0, 0xA8, 0x71])
+    }
+
+    func testParseMACRejectsMalformedInput() {
+        XCTAssertThrowsError(try WakeOnLAN.parseMAC("C8:A3:62:D0:A8"))        // too few octets
+        XCTAssertThrowsError(try WakeOnLAN.parseMAC("C8:A3:62:D0:A8:ZZ"))     // invalid hex
+        XCTAssertThrowsError(try WakeOnLAN.parseMAC(""))
+    }
+
+    func testParseTracerouteUnresolvedIPOnly() {
+        // No PTR record → traceroute prints the bare address, no parens.
+        let raw = """
+        traceroute to 203.0.113.1 (203.0.113.1), 30 hops max, 40 byte packets
+         4  203.0.113.1  15.678 ms  14.321 ms  14.111 ms
+        """
+        let hops = SystemInfo.parseTraceroute(raw)
+        XCTAssertEqual(hops.count, 1)
+        XCTAssertNil(hops[0].host)
+        XCTAssertEqual(hops[0].ip, "203.0.113.1")
+        XCTAssertEqual(hops[0].latencyMs, 15.678)
+    }
 }

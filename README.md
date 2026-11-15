@@ -33,10 +33,12 @@
   values) behind a tap-to-expand **DNS** disclosure.
 - **Network diagnostics** — a popup that pings the gateway and public anchors
   (1.1.1.1 / 8.8.8.8), queries each configured DNS server with `dig`, and times
-  a DNS resolution — each with latency + reachability.
+  a DNS resolution — each with latency + reachability. Includes an on-demand
+  **traceroute** to any host/IP, showing per-hop latency and timeouts.
 - **LAN scanner** — discovers devices on the local network from the ARP cache
   (with reverse DNS and gateway/self tagging); a **Deep Scan** ping-sweeps the
-  subnet to find more.
+  subnet to find more. Each device has a **Wake-on-LAN** button that broadcasts
+  a magic packet to its MAC (the device itself must have WoL enabled).
 - **Route table / open ports** — sortable popup tables (ports mapped to process).
 - **Hosts file editor** — view and edit `/etc/hosts` with an admin auth prompt.
 - **Bandwidth per interface** — live ↓/↑ throughput (B/s–GB/s), sampled every

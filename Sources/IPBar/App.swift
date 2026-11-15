@@ -1074,6 +1074,10 @@ struct DiagnosticsWindow: View {
     @State private var rows: [PingResult] = []
     @State private var loading = true
 
+    @State private var traceHost = "1.1.1.1"
+    @State private var traceHops: [TracerouteHop] = []
+    @State private var tracing = false
+
     var body: some View {
         VStack(spacing: 0) {
             TableToolbar(title: "Network Diagnostics", count: rows.count, loading: loading,
@@ -1106,6 +1110,53 @@ struct DiagnosticsWindow: View {
                 }.width(min: 70)
                 TableColumn("Latency") { Text($0.latencyText).monospaced() }.width(min: 70)
             }
+            .layoutPriority(1)
+
+            Divider()
+            HStack(spacing: 8) {
+                Image(systemName: "point.3.connected.trianglepath.dotted").foregroundStyle(.secondary)
+                Text("Traceroute").font(.caption.bold()).foregroundStyle(.secondary)
+                TextField("host or IP", text: $traceHost)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 150)
+                    .onSubmit { Task { await runTraceroute() } }
+                Button {
+                    Task { await runTraceroute() }
+                } label: { Text("Trace") }
+                    .disabled(tracing || traceHost.trimmingCharacters(in: .whitespaces).isEmpty)
+                if tracing { ProgressView().controlSize(.small) }
+                Spacer()
+                if !traceHops.isEmpty {
+                    Button { Clipboard.copy(traceTSV()) } label: { Image(systemName: "doc.on.doc") }
+                        .help("Copy hops")
+                }
+            }
+            .padding(.horizontal, 12).padding(.vertical, 6)
+
+            if !traceHops.isEmpty {
+                Divider()
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 3) {
+                        ForEach(traceHops) { hop in
+                            HStack(spacing: 8) {
+                                Text("\(hop.index)")
+                                    .frame(width: 20, alignment: .trailing)
+                                    .foregroundStyle(.secondary)
+                                Text(hop.destination)
+                                    .foregroundStyle(hop.timedOut ? .secondary : .primary)
+                                if let ip = hop.ip, hop.host != nil {
+                                    Text(ip).foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                Text(hop.latencyText).foregroundStyle(.secondary)
+                            }
+                            .font(.system(size: 11, design: .monospaced))
+                        }
+                    }
+                    .padding(.horizontal, 12).padding(.vertical, 6)
+                }
+                .frame(maxHeight: 150)
+            }
         }
         .frame(minWidth: 480, minHeight: 360)
         .task { await load() }
@@ -1119,11 +1170,25 @@ struct DiagnosticsWindow: View {
         loading = false
     }
 
+    private func runTraceroute() async {
+        let target = traceHost.trimmingCharacters(in: .whitespaces)
+        guard !target.isEmpty else { return }
+        tracing = true
+        traceHops = await SystemInfo.traceroute(to: target)
+        tracing = false
+    }
+
     private func tsv() -> String {
         let header = "Target\tHost\tStatus\tLatency"
         let body = rows.map { "\($0.label)\t\($0.host)\t\($0.statusText)\t\($0.latencyText)" }
         let dnsLine = dns.isEmpty ? "" : "DNS servers: \(dns.joined(separator: ", "))\n"
         return dnsLine + ([header] + body).joined(separator: "\n")
+    }
+
+    private func traceTSV() -> String {
+        let header = "Hop\tHost\tIP\tLatency"
+        let body = traceHops.map { "\($0.index)\t\($0.host ?? "")\t\($0.ip ?? "")\t\($0.latencyText)" }
+        return (["Traceroute to \(traceHost)", header] + body).joined(separator: "\n")
     }
 }
 
@@ -1131,6 +1196,9 @@ struct LanWindow: View {
     @State private var rows: [LanDevice] = []
     @State private var loading = true
     @State private var scanning = false
+    @State private var wokenMAC: String? = nil
+    @State private var wakeError: String? = nil
+    @State private var statusTask: Task<Void, Never>? = nil
 
     var body: some View {
         VStack(spacing: 0) {
@@ -1141,6 +1209,13 @@ struct LanWindow: View {
                     .padding(.horizontal, 6).padding(.vertical, 1)
                     .background(.secondary.opacity(0.15), in: Capsule())
                 Spacer()
+                if let wakeError {
+                    Label(wakeError, systemImage: "xmark.circle.fill")
+                        .font(.caption).foregroundStyle(.red)
+                } else if let wokenMAC {
+                    Label("Sent to \(wokenMAC)", systemImage: "checkmark.circle.fill")
+                        .font(.caption).foregroundStyle(.green)
+                }
                 if loading || scanning {
                     HStack(spacing: 4) {
                         ProgressView().controlSize(.small)
@@ -1169,10 +1244,35 @@ struct LanWindow: View {
                 TableColumn("IP") { Text($0.ip).monospaced() }.width(min: 110)
                 TableColumn("MAC") { Text($0.mac).monospaced() }.width(min: 140)
                 TableColumn("Interface") { Text($0.netif) }.width(min: 70)
+                TableColumn("") { d in
+                    if !d.isSelf && !d.isGateway {
+                        Button { wake(d) } label: { Image(systemName: "power") }
+                            .buttonStyle(.plain)
+                            .help("Send Wake-on-LAN magic packet to \(d.mac)")
+                    }
+                }.width(min: 24, max: 24)
             }
         }
-        .frame(minWidth: 520, minHeight: 360)
+        .frame(minWidth: 540, minHeight: 360)
         .task { await load() }
+    }
+
+    /// Sends a WoL magic packet to the device's MAC. Works only if the
+    /// device itself has Wake-on-LAN enabled — this just broadcasts the packet.
+    private func wake(_ d: LanDevice) {
+        wakeError = nil
+        wokenMAC = nil
+        do {
+            try WakeOnLAN.send(mac: d.mac)
+            wokenMAC = d.mac
+        } catch {
+            wakeError = "Wake failed"
+        }
+        statusTask?.cancel()
+        statusTask = Task {
+            try? await Task.sleep(nanoseconds: 3_000_000_000)
+            if !Task.isCancelled { wokenMAC = nil; wakeError = nil }
+        }
     }
 
     private func icon(_ d: LanDevice) -> String {

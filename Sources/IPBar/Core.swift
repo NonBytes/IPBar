@@ -1132,6 +1132,18 @@ struct PingResult: Identifiable, Sendable {
     var statusText: String { reachable ? "Online" : (detail.isEmpty ? "Offline" : detail) }
 }
 
+struct TracerouteHop: Identifiable, Sendable {
+    let id = UUID()
+    let index: Int
+    let host: String?        // reverse-DNS name, when resolved
+    let ip: String?
+    let latencyMs: Double?   // first successful probe's RTT
+    let timedOut: Bool       // every probe for this hop was "*"
+
+    var destination: String { host ?? ip ?? "—" }
+    var latencyText: String { latencyMs.map { String(format: "%.1f ms", $0) } ?? (timedOut ? "*" : "—") }
+}
+
 struct LanDevice: Identifiable, Sendable {
     let id = UUID()
     let ip: String
@@ -1145,6 +1157,51 @@ struct LanDevice: Identifiable, Sendable {
         if isSelf { return "This Mac" }
         if isGateway { return hostname ?? "Gateway" }
         return hostname ?? "—"
+    }
+}
+
+/// Sends a Wake-on-LAN magic packet — extends the LAN scanner's MAC addresses
+/// with the ability to actually wake a sleeping device from them.
+enum WakeOnLAN {
+    enum Error: Swift.Error { case invalidMAC, socketFailed }
+
+    /// Broadcasts the magic packet on the LAN (UDP, port 9 by default).
+    /// The target must have WoL enabled in its firmware/OS for this to work.
+    static func send(mac: String, broadcast: String = "255.255.255.255", port: UInt16 = 9) throws {
+        let macBytes = try parseMAC(mac)
+        var packet = [UInt8](repeating: 0xFF, count: 6)
+        for _ in 0..<16 { packet.append(contentsOf: macBytes) }
+
+        let sock = socket(AF_INET, SOCK_DGRAM, 0)
+        guard sock >= 0 else { throw Error.socketFailed }
+        defer { close(sock) }
+
+        var broadcastEnable: Int32 = 1
+        guard setsockopt(sock, SOL_SOCKET, SO_BROADCAST, &broadcastEnable,
+                         socklen_t(MemoryLayout<Int32>.size)) == 0 else { throw Error.socketFailed }
+
+        var addr = sockaddr_in()
+        addr.sin_family = sa_family_t(AF_INET)
+        addr.sin_port = port.bigEndian
+        addr.sin_addr.s_addr = inet_addr(broadcast)
+
+        let sent = withUnsafePointer(to: &addr) { ptr -> Int in
+            ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { saPtr in
+                packet.withUnsafeBufferPointer { buf in
+                    sendto(sock, buf.baseAddress, buf.count, 0, saPtr, socklen_t(MemoryLayout<sockaddr_in>.size))
+                }
+            }
+        }
+        guard sent == packet.count else { throw Error.socketFailed }
+    }
+
+    /// "C8:A3:62:D0:A8:71" / "c8-a3-62-d0-a8-71" → 6 raw bytes.
+    static func parseMAC(_ mac: String) throws -> [UInt8] {
+        let parts = mac.split(whereSeparator: { $0 == ":" || $0 == "-" })
+        guard parts.count == 6 else { throw Error.invalidMAC }
+        let bytes = parts.compactMap { UInt8($0, radix: 16) }
+        guard bytes.count == 6 else { throw Error.invalidMAC }
+        return bytes
     }
 }
 
@@ -1275,6 +1332,51 @@ enum SystemInfo {
         guard let r = raw.range(of: "Query time:") else { return nil }
         let digits = raw[r.upperBound...].drop { !$0.isNumber }.prefix { $0.isNumber }
         return Double(digits)
+    }
+
+    // MARK: Traceroute (extends the ping/dig diagnostics with a hop-by-hop path)
+
+    /// Traces the route to `host` (max 20 hops, 2s per-probe timeout — bounded
+    /// to a sane worst case even when several hops are silently dropping).
+    static func traceroute(to host: String) async -> [TracerouteHop] {
+        let args = host.contains(":") ? ["-w", "2", host] : ["-w", "2", "-m", "20", host]
+        let tool = host.contains(":") ? "/usr/sbin/traceroute6" : "/usr/sbin/traceroute"
+        return parseTraceroute(await run(tool, args))
+    }
+
+    /// Parse `traceroute` output into one hop per line, e.g.:
+    /// " 1  192.168.1.1 (192.168.1.1)  0.914 ms  0.586 ms"  → resolved hop
+    /// " 2  58.64.114.55 (58.64.114.55)  4.700 ms"          → IP only (no PTR)
+    /// " 3  *"                                              → every probe timed out
+    static func parseTraceroute(_ raw: String) -> [TracerouteHop] {
+        var hops: [TracerouteHop] = []
+        for rawLine in raw.split(separator: "\n") {
+            let tokens = rawLine.split(separator: " ").map(String.init)
+            guard let first = tokens.first, let index = Int(first) else { continue }   // skips the banner line
+            let rest = Array(tokens.dropFirst())
+            if rest.allSatisfy({ $0 == "*" }) {
+                hops.append(TracerouteHop(index: index, host: nil, ip: nil, latencyMs: nil, timedOut: true))
+                continue
+            }
+            var host: String? = nil
+            var ip: String? = nil
+            if let name = rest.first {
+                if name.first?.isNumber == true, name.contains(".") || name.contains(":") {
+                    ip = name   // unresolved — traceroute prints the bare address
+                } else {
+                    host = name
+                    if rest.count > 1, rest[1].hasPrefix("("), rest[1].hasSuffix(")") {
+                        ip = String(rest[1].dropFirst().dropLast())
+                    }
+                }
+            }
+            var latency: Double? = nil
+            for i in 1..<rest.count where rest[i] == "ms" {
+                latency = Double(rest[i - 1]); break
+            }
+            hops.append(TracerouteHop(index: index, host: host, ip: ip, latencyMs: latency, timedOut: latency == nil))
+        }
+        return hops
     }
 
     // MARK: LAN device discovery (ARP table + reverse DNS)
