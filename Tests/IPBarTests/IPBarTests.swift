@@ -306,4 +306,31 @@ final class IPBarTests: XCTestCase {
         XCTAssertEqual(v6only.primaryIP, "2001:db8::1")
         XCTAssertNil(v6only.secondaryIP)
     }
+
+    // MARK: bandwidth (netstat -ib byte counters)
+
+    func testParseByteCountersReadsLinkRow() {
+        let raw = """
+        Name       Mtu   Network       Address            Ipkts Ierrs     Ibytes    Opkts Oerrs     Obytes  Coll
+        lo0        16384 <Link#1>                       2781011     0 5545635761  2781011     0 5545635761     0
+        lo0        16384 127           localhost        2781011     - 5545635761  2781011     - 5545635761     -
+        gif0*      1280  <Link#2>                             0     0          0        0     0          0     0
+        en9        1500  <Link#10>   c8:a3:62:d0:a8:71 63328901     0 71499435688 15912925     0 21324614069     0
+        en9        1500  192.168.111   192.168.111.61  63328901     - 71499435688 15912925     - 21324614069     -
+        """
+        let counters = SystemInfo.parseByteCounters(raw)
+        XCTAssertEqual(counters.count, 3)
+        XCTAssertEqual(counters["lo0"]?.rx, 5545635761)
+        XCTAssertEqual(counters["lo0"]?.tx, 5545635761)
+        // Trailing "*" (no-ARP flag) is stripped from the interface name.
+        XCTAssertEqual(counters["gif0"]?.rx, 0)
+        XCTAssertEqual(counters["en9"]?.rx, 71499435688)
+        XCTAssertEqual(counters["en9"]?.tx, 21324614069)
+    }
+
+    func testFormatRateScalesUnits() {
+        XCTAssertEqual(formatRate(850), "850 B/s")
+        XCTAssertEqual(formatRate(204_800), "200.0 KB/s")
+        XCTAssertEqual(formatRate(5 * 1_048_576), "5.0 MB/s")
+    }
 }

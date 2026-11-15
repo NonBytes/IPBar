@@ -743,6 +743,22 @@ enum HistoryStore {
         }
     }
     static func clear() { UserDefaults.standard.removeObject(forKey: DefaultsKey.history) }
+
+    /// Render entries as CSV for export (RFC 4180 quoting for fields with
+    /// commas, quotes, or newlines).
+    static func csv(from entries: [IPHistoryEntry]) -> String {
+        func field(_ s: String) -> String {
+            guard s.contains(",") || s.contains("\"") || s.contains("\n") else { return s }
+            return "\"" + s.replacingOccurrences(of: "\"", with: "\"\"") + "\""
+        }
+        var rows = ["Date,Public IPv4,Hostname,Summary"]
+        let iso = ISO8601DateFormatter()
+        for e in entries {
+            rows.append([iso.string(from: e.date), e.publicIPv4 ?? "", e.hostname ?? "", e.summary]
+                .map(field).joined(separator: ","))
+        }
+        return rows.joined(separator: "\n") + "\n"
+    }
 }
 
 // MARK: - Public IP cache (stale-while-revalidate)
@@ -772,11 +788,17 @@ final class IPModel: ObservableObject {
     @Published var isRefreshing = false
     @Published var history: [IPHistoryEntry] = []
     @Published var vpnActive = false
+    /// Live bandwidth, bytes/sec, keyed by BSD name. Populated ~2s after launch
+    /// (needs two samples to compute a delta).
+    @Published var bandwidth: [String: (rx: Double, tx: Double)] = [:]
 
     private let monitor = NWPathMonitor()
     private var debounce: Task<Void, Never>? = nil
     private var notifiedPublicIP: String? = nil
     private var didBaselineNotify = false
+    private var lastByteCounters: [String: (rx: UInt64, tx: UInt64)]? = nil
+    private var lastByteSampleDate: Date? = nil
+    private var bandwidthTask: Task<Void, Never>? = nil
 
     init() {
         history = HistoryStore.load()
@@ -784,6 +806,7 @@ final class IPModel: ObservableObject {
         if let cached = PublicIPCache.load() { publicInfo = cached }
         startMonitoring()
         startPeriodic()
+        startBandwidthSampling()
         // Re-scan once Location is granted so the Wi-Fi SSID/BSSID populate.
         NotificationCenter.default.addObserver(forName: .locationAuthorized,
                                                object: nil, queue: .main) { [weak self] _ in
@@ -825,6 +848,7 @@ final class IPModel: ObservableObject {
         }
     }
 
+    /// Short one-line-per-interface summary (used by the compact footer copy).
     func summaryText() -> String {
         var lines: [String] = ["Host: \(hostName)"]
         if let v4 = publicInfo.ipv4 ?? publicInfo.ipv6 {
@@ -837,6 +861,49 @@ final class IPModel: ObservableObject {
             var s = "\(i.displayName): \(i.cidr ?? ip)"
             if !i.ipv6.isEmpty { s += " | " + i.ipv6.joined(separator: ", ") }
             lines.append(s)
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    /// Full diagnostic report — every field the panel knows, one block per
+    /// interface. Meant for pasting into a support ticket or chat.
+    func fullReportText() -> String {
+        var lines: [String] = [
+            "IPBar report — \(Date().formatted(date: .abbreviated, time: .standard))",
+            "Host: \(hostName)",
+        ]
+
+        if !publicInfo.isEmpty {
+            lines.append("")
+            lines.append("Public IP")
+            if let v4 = publicInfo.ipv4 { lines.append("  IPv4: \(v4)") }
+            if let v6 = publicInfo.ipv6 { lines.append("  IPv6: \(v6)") }
+            if let h = publicInfo.hostname { lines.append("  Hostname: \(h)") }
+            if let isp = publicInfo.isp { lines.append("  ISP: \(isp)") }
+            if let country = publicInfo.country { lines.append("  Country: \(country)") }
+        }
+
+        for i in interfaces where i.kind != .loopback {
+            guard let ip = i.primaryIP else { continue }
+            lines.append("")
+            var header = "\(i.displayName) [\(i.kind.rawValue.uppercased())]"
+            if i.isPrimary { header += " — default route" }
+            lines.append(header)
+            lines.append("  IP: \(i.cidr ?? ip)")
+            if !i.ipv6.isEmpty { lines.append("  IPv6: " + i.ipv6.joined(separator: ", ")) }
+            if let mac = i.mac { lines.append("  MAC: \(mac)") }
+            if let gw = i.gateway { lines.append("  Gateway: \(gw)") }
+            if let cfg = i.configMethod { lines.append("  Config: \(cfg)") }
+            if !i.dnsServers.isEmpty { lines.append("  DNS: " + i.dnsServers.joined(separator: ", ")) }
+            if !i.searchDomains.isEmpty { lines.append("  Search: " + i.searchDomains.joined(separator: ", ")) }
+            if let wifi = i.wifi {
+                var w: [String] = []
+                if let ssid = wifi.ssid { w.append(ssid) }
+                if let rssi = wifi.rssi { w.append("\(rssi) dBm") }
+                if !wifi.channelLine.isEmpty { w.append(wifi.channelLine) }
+                if let sec = wifi.security { w.append(sec) }
+                if !w.isEmpty { lines.append("  Wi-Fi: " + w.joined(separator: " · ")) }
+            }
         }
         return lines.joined(separator: "\n")
     }
@@ -901,6 +968,33 @@ final class IPModel: ObservableObject {
                 } else {
                     try? await Task.sleep(nanoseconds: 5_000_000_000)
                 }
+            }
+        }
+    }
+
+    /// Samples cumulative interface byte counters every 2s and turns the
+    /// delta into a bytes/sec rate — independent of the (often-off) full
+    /// network refresh, since a counter read is cheap.
+    private func startBandwidthSampling() {
+        bandwidthTask = Task { [weak self] in
+            while !Task.isCancelled {
+                guard let self else { return }
+                let now = Date()
+                let counters = await SystemInfo.byteCounters()
+                if let prev = self.lastByteCounters, let prevDate = self.lastByteSampleDate {
+                    let dt = now.timeIntervalSince(prevDate)
+                    if dt > 0 {
+                        var rates: [String: (rx: Double, tx: Double)] = [:]
+                        for (name, cur) in counters {
+                            guard let old = prev[name], cur.rx >= old.rx, cur.tx >= old.tx else { continue }
+                            rates[name] = (Double(cur.rx - old.rx) / dt, Double(cur.tx - old.tx) / dt)
+                        }
+                        self.bandwidth = rates
+                    }
+                }
+                self.lastByteCounters = counters
+                self.lastByteSampleDate = now
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
             }
         }
     }
@@ -983,6 +1077,15 @@ func ispOrgName(_ raw: String) -> String {
         return parts[1]
     }
     return raw
+}
+
+/// Human-readable bytes/sec, e.g. 850 → "850 B/s", 204800 → "200 KB/s".
+func formatRate(_ bytesPerSec: Double) -> String {
+    let units: [(Double, String)] = [(1_073_741_824, "GB/s"), (1_048_576, "MB/s"), (1024, "KB/s")]
+    for (threshold, unit) in units where bytesPerSec >= threshold {
+        return String(format: "%.1f %@", bytesPerSec / threshold, unit)
+    }
+    return String(format: "%.0f B/s", bytesPerSec)
 }
 
 enum Clipboard {
@@ -1068,6 +1171,34 @@ enum SystemInfo {
     /// Parsed listening ports, each mapped to its owning process.
     static func ports() async -> [PortEntry] {
         parsePorts(await openPorts())
+    }
+
+    // MARK: Bandwidth (cumulative byte counters, for rate sampling)
+
+    /// Cumulative RX/TX byte counters per BSD interface, from `netstat -ib`.
+    /// `getifaddrs`'s AF_LINK `ifa_data` is unreliable to decode directly in
+    /// Swift (struct layout pitfalls), so we shell out like the rest of this
+    /// enum does for route/port/ARP info.
+    static func byteCounters() async -> [String: (rx: UInt64, tx: UInt64)] {
+        parseByteCounters(await run("/usr/sbin/netstat", ["-ib"]))
+    }
+
+    /// Only the `<Link#N>` row per interface carries real (non-"-") totals;
+    /// the per-address rows below it repeat the same cumulative numbers.
+    static func parseByteCounters(_ raw: String) -> [String: (rx: UInt64, tx: UInt64)] {
+        var out: [String: (rx: UInt64, tx: UInt64)] = [:]
+        for line in raw.split(separator: "\n").dropFirst() {
+            let cols = line.split(separator: " ", omittingEmptySubsequences: true).map(String.init)
+            guard cols.count >= 8, cols.contains(where: { $0.hasPrefix("<Link#") }) else { continue }
+            // Columns, counted from the right (stable regardless of the
+            // optional Address column): Ipkts Ierrs Ibytes Opkts Oerrs Obytes Coll
+            guard let ibytes = UInt64(cols[cols.count - 5]),
+                  let obytes = UInt64(cols[cols.count - 2]) else { continue }
+            var name = cols[0]
+            if name.hasSuffix("*") { name.removeLast() }   // "gif0*" → "gif0" (no-arp flag)
+            out[name] = (ibytes, obytes)
+        }
+        return out
     }
 
     // MARK: Diagnostics (DNS servers + ping reachability/latency)

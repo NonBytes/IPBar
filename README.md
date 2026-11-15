@@ -39,13 +39,20 @@
   subnet to find more.
 - **Route table / open ports** — sortable popup tables (ports mapped to process).
 - **Hosts file editor** — view and edit `/etc/hosts` with an admin auth prompt.
+- **Bandwidth per interface** — live ↓/↑ throughput (B/s–GB/s), sampled every
+  2s from `netstat -ib` independently of the full network scan, so it stays
+  current even with auto-refresh off.
 - **Click to copy** — click any address to copy it to the clipboard.
+- **Copy full report** — one click copies every field (IP, MAC, gateway,
+  config, DNS, Wi-Fi) for every interface as plain text, ready to paste into a
+  support ticket. A separate "copy all addresses" button keeps the short form.
 - **Privacy masking** — independent click-to-mask toggles across the panel: the
   **hostname** (tap the header), each interface's **IP / MAC / subnet / gateway /
   DNS** (tap its name), the **public IP + ISP** (tap "Public IP"), and the
   **Wi-Fi SSID / BSSID** (tap the signal icon). Click again to reveal — handy for
   screenshots.
-- **History** — records public-IP / primary-interface changes over time.
+- **History** — records public-IP / primary-interface changes over time, with
+  one-click **CSV export**.
 - **Auto refresh** — re-scans automatically when the network path changes
   (`NWPathMonitor`), plus a manual Refresh button.
 

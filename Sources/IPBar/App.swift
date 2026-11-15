@@ -4,6 +4,7 @@ import CoreGraphics
 import CoreText
 import ServiceManagement
 import UserNotifications
+import UniformTypeIdentifiers
 
 @main
 struct IPBarApp: App {
@@ -215,7 +216,7 @@ struct ContentView: View {
             } else {
                 VStack(spacing: 10) {
                     ForEach(shown) { iface in
-                        InterfaceRow(iface: iface, onCopy: copy)
+                        InterfaceRow(iface: iface, onCopy: copy, rate: model.bandwidth[iface.bsdName])
                     }
                 }
             }
@@ -275,6 +276,10 @@ struct ContentView: View {
                 Clipboard.copy(model.summaryText()); showToast("Copied all addresses")
             } label: { Image(systemName: "doc.on.doc") }
                 .help("Copy all addresses")
+            Button {
+                Clipboard.copy(model.fullReportText()); showToast("Copied full report")
+            } label: { Image(systemName: "doc.text.magnifyingglass") }
+                .help("Copy full report (every field, for support tickets)")
             Button {
                 NSApp.activate(ignoringOtherApps: true); openSettings()
             } label: { Image(systemName: "gearshape") }
@@ -396,6 +401,7 @@ func countryFlag(_ code: String?) -> String? {
 struct InterfaceRow: View {
     let iface: NetworkInterface
     let onCopy: (String) -> Void
+    var rate: (rx: Double, tx: Double)? = nil
     @AppStorage(DefaultsKey.showLinkLocalV6) private var showLinkLocal = false
     @AppStorage(DefaultsKey.showIPv6) private var showIPv6 = true
     @AppStorage(DefaultsKey.showMAC) private var showMAC = true
@@ -448,6 +454,14 @@ struct InterfaceRow: View {
                 }
                 if showWiFiDetails, let w = iface.wifi {
                     WiFiDetailLine(wifi: w)
+                }
+                if let rate, rate.rx > 0 || rate.tx > 0 {
+                    HStack(spacing: 6) {
+                        Label(formatRate(rate.rx), systemImage: "arrow.down")
+                        Label(formatRate(rate.tx), systemImage: "arrow.up")
+                    }
+                    .font(.system(size: 9, design: .monospaced))
+                    .foregroundStyle(.secondary)
                 }
             }
 
@@ -748,6 +762,9 @@ struct HistoryView: View {
     @EnvironmentObject var model: IPModel
     let onBack: () -> Void
 
+    @State private var statusMsg: String? = nil
+    @State private var statusTask: Task<Void, Never>? = nil
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
@@ -755,6 +772,13 @@ struct HistoryView: View {
                     .buttonStyle(.borderless)
                 Text("History").font(.system(size: 14, weight: .bold))
                 Spacer()
+                if let msg = statusMsg {
+                    Text(msg).font(.system(size: 10)).foregroundStyle(.secondary)
+                }
+                Button { exportCSV() } label: { Image(systemName: "square.and.arrow.up") }
+                    .buttonStyle(.borderless)
+                    .disabled(model.history.isEmpty)
+                    .help("Export as CSV")
                 Button("Clear") { model.clearHistory() }
                     .buttonStyle(.borderless)
                     .disabled(model.history.isEmpty)
@@ -773,6 +797,29 @@ struct HistoryView: View {
             }
         }
         .padding(14)
+    }
+
+    private func exportCSV() {
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.commaSeparatedText]
+        panel.nameFieldStringValue = "IPBar-History-\(Date().formatted(.iso8601.year().month().day())).csv"
+        NSApp.activate(ignoringOtherApps: true)
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            try HistoryStore.csv(from: model.history).write(to: url, atomically: true, encoding: .utf8)
+            showStatus("Exported")
+        } catch {
+            showStatus("Export failed")
+        }
+    }
+
+    private func showStatus(_ msg: String) {
+        statusMsg = msg
+        statusTask?.cancel()
+        statusTask = Task {
+            try? await Task.sleep(nanoseconds: 2_500_000_000)
+            if !Task.isCancelled { statusMsg = nil }
+        }
     }
 }
 
