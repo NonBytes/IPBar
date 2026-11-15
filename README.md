@@ -35,10 +35,13 @@
   (1.1.1.1 / 8.8.8.8), queries each configured DNS server with `dig`, and times
   a DNS resolution — each with latency + reachability. Includes an on-demand
   **traceroute** to any host/IP, showing per-hop latency and timeouts.
-- **LAN scanner** — discovers devices on the local network from the ARP cache
-  (with reverse DNS and gateway/self tagging); a **Deep Scan** ping-sweeps the
-  subnet to find more. Each device has a **Wake-on-LAN** button that broadcasts
-  a magic packet to its MAC (the device itself must have WoL enabled).
+- **LAN scanner** — discovers devices on the local network by reading the
+  kernel's ARP table directly via a routing-socket `sysctl` (not by shelling
+  out to `arp`, which some macOS builds silently empty out for spawned child
+  processes), with reverse DNS and gateway/self tagging; a **Deep Scan**
+  ping-sweeps the subnet to find more. Each device has a **Wake-on-LAN**
+  button that broadcasts a magic packet to its MAC (the device itself must
+  have WoL enabled).
 - **Route table / open ports** — sortable popup tables (ports mapped to process).
 - **Hosts file editor** — view and edit `/etc/hosts` with an admin auth prompt.
 - **Bandwidth per interface** — live ↓/↑ throughput (B/s–GB/s), sampled every
@@ -138,6 +141,8 @@ Both build systems compile the **same** `Sources/IPBar/*.swift` and use the same
 - **Public IP**: enable/disable the lookup, optional **ISP / country** (resolved
   through a provider fallback chain), and **notify on public-IP change**. Turn
   both off to keep every lookup on-device.
+- **About**: app icon, version/build number (also `IPBar --version` on the CLI),
+  a link to the repo, and a **Copy Version Info** button for bug reports.
 
 Per interface the panel also shows the **subnet** (`/24`), **gateway**, **MAC**,
 **DNS / search domains** (tap "DNS"), a **DHCP / Manual** badge, and a

@@ -1096,6 +1096,23 @@ enum Clipboard {
     }
 }
 
+// MARK: - App version (for the About panel / bug reports)
+
+enum AppVersion {
+    static var shortVersion: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—"
+    }
+    static var buildNumber: String {
+        Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "—"
+    }
+    static var displayString: String { "Version \(shortVersion) (\(buildNumber))" }
+
+    /// One line with everything a bug report needs — app version, build, and OS.
+    static var diagnosticString: String {
+        "IPBar \(shortVersion) (\(buildNumber)) — macOS \(ProcessInfo.processInfo.operatingSystemVersionString)"
+    }
+}
+
 // MARK: - System info (route table / open ports)
 
 struct RouteEntry: Identifiable, Sendable {
@@ -1157,6 +1174,63 @@ struct LanDevice: Identifiable, Sendable {
         if isSelf { return "This Mac" }
         if isGateway { return hostname ?? "Gateway" }
         return hostname ?? "—"
+    }
+}
+
+/// Reads the kernel's IPv4 ARP cache directly via a routing-socket sysctl —
+/// the same mechanism `arp -an` itself uses internally. We stopped shelling
+/// out to `arp`: on this macOS build it silently exits 0 with empty output
+/// whenever it's spawned as a child process (confirmed even from a properly
+/// signed .app — `netstat`, `ping`, and `dig`, spawned the same way, are
+/// unaffected, so this is `arp`-binary-specific, not a general sandboxing or
+/// Local Network permission issue). The raw sysctl has no such restriction.
+enum ArpTable {
+    /// (ip, mac, BSD interface name) for every IPv4 entry with link-layer info.
+    static func read() -> [(ip: String, mac: String, netif: String)] {
+        var mib: [Int32] = [CTL_NET, PF_ROUTE, 0, AF_INET, NET_RT_FLAGS, RTF_LLINFO]
+        var needed = 0
+        guard sysctl(&mib, 6, nil, &needed, nil, 0) == 0, needed > 0 else { return [] }
+        var buf = [UInt8](repeating: 0, count: needed)
+        guard sysctl(&mib, 6, &buf, &needed, nil, 0) == 0 else { return [] }
+
+        var results: [(ip: String, mac: String, netif: String)] = []
+        var offset = 0
+        buf.withUnsafeBytes { raw in
+            while offset + MemoryLayout<rt_msghdr>.size <= needed {
+                let rtm = raw.loadUnaligned(fromByteOffset: offset, as: rt_msghdr.self)
+                let msgLen = Int(rtm.rtm_msglen)
+                guard msgLen > 0 else { break }
+                defer { offset += msgLen }
+
+                // Need both the destination IP (RTA_DST) and the link-layer
+                // address (RTA_GATEWAY) to report a usable row.
+                guard (rtm.rtm_addrs & RTA_DST) != 0, (rtm.rtm_addrs & RTA_GATEWAY) != 0 else { continue }
+
+                var cursor = offset + MemoryLayout<rt_msghdr>.size
+                let sin = raw.loadUnaligned(fromByteOffset: cursor, as: sockaddr_in.self)
+                cursor += roundUp(Int(sin.sin_len))   // addresses are padded to word size
+
+                let sdl = raw.loadUnaligned(fromByteOffset: cursor, as: sockaddr_dl.self)
+                guard sdl.sdl_alen == 6 else { continue }   // skip entries with no real MAC yet
+
+                let dataOffset = cursor + 8 + Int(sdl.sdl_nlen)   // 8 = offset of sdl_data in sockaddr_dl
+                let macBytes = (0..<6).map { raw.load(fromByteOffset: dataOffset + $0, as: UInt8.self) }
+                let mac = macBytes.map { String(format: "%02x", $0) }.joined(separator: ":")
+                let ip = String(cString: inet_ntoa(sin.sin_addr))
+
+                var nameBuf = [CChar](repeating: 0, count: Int(IFNAMSIZ))
+                var netif = ""
+                if if_indextoname(UInt32(sdl.sdl_index), &nameBuf) != nil {
+                    netif = bufferToString(nameBuf)
+                }
+                results.append((ip, mac, netif))
+            }
+        }
+        return results
+    }
+
+    private static func roundUp(_ a: Int) -> Int {
+        a > 0 ? (1 + ((a - 1) | (MemoryLayout<Int>.size - 1))) : MemoryLayout<Int>.size
     }
 }
 
@@ -1383,7 +1457,7 @@ enum SystemInfo {
 
     /// Devices in the ARP cache, deduped, flagged, optionally reverse-resolved.
     static func lanDevices(resolveNames: Bool) async -> [LanDevice] {
-        var devices = parseArp(await run("/usr/sbin/arp", ["-an"]))
+        var devices = buildLanDevices(from: ArpTable.read())
         let gw = defaultGateway()
         let selfIPs = Set(NetworkScanner.scan().flatMap { $0.ipv4 })
         for i in devices.indices {
@@ -1419,10 +1493,11 @@ enum SystemInfo {
         }
     }
 
-    /// Parse `arp -an` output into deduped LAN devices, sorted by IP.
+    /// Parse `arp -an` text into deduped LAN devices, sorted by IP. Kept for
+    /// tests and reference; the live path uses `ArpTable.read()` instead —
+    /// see its doc comment for why.
     static func parseArp(_ raw: String) -> [LanDevice] {
-        var seen = Set<String>()
-        var result: [LanDevice] = []
+        var tuples: [(ip: String, mac: String, netif: String)] = []
         for line in raw.split(separator: "\n") {
             let s = String(line)
             guard let lp = s.firstIndex(of: "("), let rp = s.firstIndex(of: ")"), lp < rp else { continue }
@@ -1434,12 +1509,23 @@ enum SystemInfo {
             if let onR = s.range(of: " on ") {
                 netif = String(s[onR.upperBound...].prefix { $0 != " " })
             }
-            // Skip multicast / broadcast noise.
-            if ip.hasPrefix("224.") || ip.hasPrefix("239.") || ip == "255.255.255.255" { continue }
-            let low = mac.lowercased()
-            if low.hasPrefix("1:0:5e") || low.hasPrefix("33:33") || low == "ff:ff:ff:ff:ff:ff" { continue }
-            guard seen.insert(ip).inserted else { continue }   // one row per IP
-            result.append(LanDevice(ip: ip, mac: normalizeMAC(mac), hostname: nil, netif: netif))
+            tuples.append((ip, mac, netif))
+        }
+        return buildLanDevices(from: tuples)
+    }
+
+    /// Shared filtering (multicast/broadcast noise, reserved MACs, one row
+    /// per IP) and sort, used by both `parseArp` and the live `ArpTable` path.
+    static func buildLanDevices(from raw: [(ip: String, mac: String, netif: String)]) -> [LanDevice] {
+        var seen = Set<String>()
+        var result: [LanDevice] = []
+        for entry in raw {
+            if entry.ip.hasPrefix("224.") || entry.ip.hasPrefix("239.") || entry.ip == "255.255.255.255" { continue }
+            let low = entry.mac.lowercased()
+            if low.hasPrefix("1:0:5e") || low.hasPrefix("01:00:5e") || low.hasPrefix("33:33")
+                || low == "ff:ff:ff:ff:ff:ff" { continue }
+            guard seen.insert(entry.ip).inserted else { continue }   // one row per IP
+            result.append(LanDevice(ip: entry.ip, mac: normalizeMAC(entry.mac), hostname: nil, netif: entry.netif))
         }
         return result.sorted { ipSortKey($0.ip) < ipSortKey($1.ip) }
     }

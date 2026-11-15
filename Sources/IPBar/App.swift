@@ -14,6 +14,7 @@ struct IPBarApp: App {
     init() {
         DefaultsKey.registerDefaults()
         let args = CommandLine.arguments
+        if args.contains("--version") { print(AppVersion.diagnosticString); exit(0) }
         if args.contains("--dump")   { DumpMode.run() }
         if args.contains("--routes") { DumpMode.runSystem { await SystemInfo.routeTable() } }
         if args.contains("--ports")  { DumpMode.runSystem { await SystemInfo.openPorts() } }
@@ -736,9 +737,13 @@ struct SettingsView: View {
                 Text("ISP lookup contacts ipapi.co. Disable both to keep all lookups local.")
                     .font(.caption).foregroundStyle(.secondary)
             }
+
+            Section("About") {
+                AboutRow()
+            }
         }
         .formStyle(.grouped)
-        .frame(width: 420, height: 420)
+        .frame(width: 420, height: 460)
     }
 
     private func setLaunchAtLogin(_ enabled: Bool) {
@@ -749,6 +754,39 @@ struct SettingsView: View {
         } catch {
             launchAtLogin = (SMAppService.mainApp.status == .enabled)
         }
+    }
+}
+
+struct AboutRow: View {
+    @State private var copied = false
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(nsImage: NSApp.applicationIconImage ?? NSImage())
+                .resizable().frame(width: 48, height: 48)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("IPBar").font(.headline)
+                Text(AppVersion.displayString)
+                    .font(.caption).foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+                Link("github.com/NonBytes/IPBar", destination: URL(string: "https://github.com/NonBytes/IPBar")!)
+                    .font(.caption)
+                Text("© NonBytes").font(.caption2).foregroundStyle(.secondary)
+            }
+            Spacer()
+            Button {
+                Clipboard.copy(AppVersion.diagnosticString)
+                copied = true
+                Task {
+                    try? await Task.sleep(nanoseconds: 1_500_000_000)
+                    copied = false
+                }
+            } label: {
+                Text(copied ? "Copied" : "Copy Version Info")
+            }
+            .font(.caption)
+        }
+        .padding(.vertical, 4)
     }
 }
 

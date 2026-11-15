@@ -295,6 +295,24 @@ final class IPBarTests: XCTestCase {
         XCTAssertLessThan(SystemInfo.ipSortKey("10.0.0.1"), SystemInfo.ipSortKey("192.168.0.1"))
     }
 
+    // buildLanDevices is what ArpTable.read() (the live, sysctl-based path)
+    // feeds through — same filters as parseArp, applied to tuples directly.
+    func testBuildLanDevicesFiltersAndDedupes() {
+        let raw: [(ip: String, mac: String, netif: String)] = [
+            ("192.168.111.1", "64:20:e0:8f:69:0b", "en9"),
+            ("192.168.111.1", "64:20:e0:8f:69:0b", "en0"),            // duplicate IP
+            ("192.168.111.51", "f4:9d:8a:3c:7f:07", "en9"),
+            ("224.0.0.251", "01:00:5e:00:00:fb", "en0"),              // multicast — dropped
+            ("239.255.255.250", "01:00:5e:7f:ff:fa", "en0"),          // multicast — dropped
+            ("255.255.255.255", "ff:ff:ff:ff:ff:ff", "en0"),          // broadcast — dropped
+        ]
+        let devices = SystemInfo.buildLanDevices(from: raw)
+        XCTAssertEqual(devices.count, 2)
+        XCTAssertEqual(devices[0].ip, "192.168.111.1")
+        XCTAssertEqual(devices[0].mac, "64:20:E0:8F:69:0B")
+        XCTAssertEqual(devices[1].ip, "192.168.111.51")
+    }
+
     // MARK: public IP headline mirrors the same rule
 
     func testPublicInfoHeadlineRule() {
