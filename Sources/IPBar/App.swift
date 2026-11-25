@@ -190,6 +190,12 @@ struct ContentView: View {
             }
         }
         .frame(width: 420)
+        // MenuBarExtra's .window style backs the popover with an NSPanel that
+        // doesn't always resize its own shadow/frame in sync with dynamic
+        // SwiftUI content height (interfaces appearing/disappearing, DNS
+        // disclosure, etc.) — without this, a stale, larger "ghost" outline
+        // from the previous size can linger behind the panel.
+        .fixedSize(horizontal: false, vertical: true)
         .animation(.easeInOut(duration: 0.2), value: toast)
     }
 
